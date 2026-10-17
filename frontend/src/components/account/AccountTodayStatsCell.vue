@@ -13,13 +13,13 @@
     </div>
 
     <!-- Stats data -->
-    <div v-else-if="props.stats" class="inline-flex items-center gap-1.5 text-xs font-mono">
-      <span class="inline-flex items-center gap-1 rounded bg-gray-100/80 px-2 py-0.5 text-gray-600 dark:bg-dark-700 dark:text-gray-300">
-        <span class="text-[10px] text-gray-400 font-sans">{{ t('admin.accounts.stats.requests') }}</span>
+    <div v-else-if="props.stats" class="flex flex-wrap items-center gap-1.5 text-xs font-mono">
+      <span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-gray-100/90 px-2 py-0.5 text-gray-700 dark:bg-dark-700 dark:text-gray-200">
+        <span class="text-[10px] text-gray-400 dark:text-gray-500 font-sans font-normal">{{ t('admin.accounts.stats.requests') }}</span>
         <span class="font-semibold">{{ formatNumber(props.stats.requests) }}</span>
       </span>
-      <span class="inline-flex items-center gap-1 rounded bg-gray-100/80 px-2 py-0.5 text-gray-600 dark:bg-dark-700 dark:text-gray-300">
-        <span class="text-[10px] text-gray-400 font-sans">{{ t('admin.accounts.stats.tokens') }}</span>
+      <span class="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-gray-100/90 px-2 py-0.5 text-gray-700 dark:bg-dark-700 dark:text-gray-200">
+        <span class="text-[10px] text-gray-400 dark:text-gray-500 font-sans font-normal">{{ t('admin.accounts.stats.tokens') }}</span>
         <span class="font-semibold">{{ formatTokens(props.stats.tokens) }}</span>
       </span>
     </div>

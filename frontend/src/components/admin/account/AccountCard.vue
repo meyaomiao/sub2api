@@ -120,11 +120,11 @@
     </div>
 
     <!-- Metadata Section: Today Stats, Groups, Notes -->
-    <div class="space-y-2 text-xs py-1">
+    <div class="space-y-2.5 text-xs py-1.5 border-t border-gray-100 dark:border-dark-700/60 mt-1">
       <!-- Today Stats -->
-      <div class="flex items-center justify-between gap-2 px-1">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 px-0.5">
         <span class="text-[11px] text-gray-400 shrink-0 font-medium tracking-wide">{{ t('admin.accounts.columns.todayStats') }}</span>
-        <div class="flex items-center gap-1.5 overflow-hidden">
+        <div class="flex flex-wrap items-center gap-1.5 min-w-0">
           <AccountTodayStatsCell
             :stats="todayStats"
             :loading="todayStatsLoading"
@@ -135,13 +135,15 @@
       </div>
 
       <!-- Groups Tag -->
-      <div v-if="groups.length" class="flex items-center justify-between gap-2 px-1 overflow-hidden">
-        <span class="text-[11px] text-gray-400 shrink-0 font-medium tracking-wide">{{ t('admin.accounts.columns.groups') }}</span>
-        <AccountGroupsCell :groups="groups" :max-display="3" />
+      <div v-if="groups.length" class="flex flex-col sm:flex-row sm:items-start justify-between gap-1.5 px-0.5">
+        <span class="text-[11px] text-gray-400 shrink-0 font-medium tracking-wide sm:pt-0.5">{{ t('admin.accounts.columns.groups') }}</span>
+        <div class="flex flex-wrap items-center gap-1 min-w-0 max-w-full">
+          <AccountGroupsCell :groups="groups" :max-display="3" />
+        </div>
       </div>
 
       <!-- Notes -->
-      <div v-if="account.notes" class="truncate text-[11px] text-gray-400 dark:text-gray-500 px-1 pt-0.5 border-t border-gray-50 dark:border-dark-700/50" :title="account.notes">
+      <div v-if="account.notes" class="truncate text-[11px] text-gray-400 dark:text-gray-500 px-0.5 pt-1" :title="account.notes">
         💬 {{ account.notes }}
       </div>
     </div>
