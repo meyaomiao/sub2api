@@ -16,6 +16,39 @@
             @refresh="handleManualRefresh"
             @create="showCreate = true"
           >
+            <template #before>
+              <!-- Card / Table View Toggle -->
+              <div class="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 shadow-sm dark:border-dark-700 dark:bg-dark-800">
+                <button
+                  type="button"
+                  @click="setViewMode('card')"
+                  :class="[
+                    'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
+                    viewMode === 'card'
+                      ? 'bg-primary-50 text-primary-600 shadow-sm dark:bg-primary-900/30 dark:text-primary-400'
+                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  ]"
+                  :title="t('admin.accounts.viewModeCard')"
+                >
+                  <Icon name="grid" size="xs" />
+                  <span class="hidden sm:inline">{{ t('admin.accounts.viewModeCard') }}</span>
+                </button>
+                <button
+                  type="button"
+                  @click="setViewMode('table')"
+                  :class="[
+                    'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
+                    viewMode === 'table'
+                      ? 'bg-primary-50 text-primary-600 shadow-sm dark:bg-primary-900/30 dark:text-primary-400'
+                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  ]"
+                  :title="t('admin.accounts.viewModeTable')"
+                >
+                  <Icon name="table" size="xs" />
+                  <span class="hidden sm:inline">{{ t('admin.accounts.viewModeTable') }}</span>
+                </button>
+              </div>
+            </template>
             <template #after>
               <!-- Auto Refresh Dropdown -->
               <div class="relative" ref="autoRefreshDropdownRef">
@@ -191,7 +224,51 @@
           @select-all-results="handleSelectAllResults"
           @toggle-schedulable="handleBulkToggleSchedulable"
         />
-        <div ref="accountTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <!-- Card Grid View (CPA Style) -->
+        <div v-if="viewMode === 'card'" class="flex-1 overflow-y-auto p-1">
+          <div v-if="loading && (!accounts || accounts.length === 0)" class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div v-for="i in 10" :key="i" class="h-56 animate-pulse rounded-xl border border-gray-200 bg-gray-100 dark:border-dark-700 dark:bg-dark-800"></div>
+          </div>
+          <div v-else-if="!accounts || accounts.length === 0" class="flex flex-col items-center justify-center p-12 text-center text-gray-500 dark:text-gray-400">
+            <Icon name="inbox" size="lg" class="mb-2 text-gray-400" />
+            <p>{{ t('common.noData') }}</p>
+          </div>
+          <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <AccountCard
+              v-for="acc in accounts"
+              :key="acc.id"
+              :account="acc"
+              :is-selected="isSelected(acc.id)"
+              :toggling-schedulable="togglingSchedulable === acc.id"
+              :today-stats="todayStatsByAccountId[String(acc.id)] ?? null"
+              :today-stats-loading="todayStatsLoading"
+              :today-stats-error="todayStatsError"
+              :manual-refresh-token="usageManualRefreshToken"
+              :batched-usage="usageBatchByAccountId[String(acc.id)] ?? null"
+              :batched-usage-error="usageBatchErrorByAccountId[String(acc.id)] ?? null"
+              :batched-usage-loading="usageBatchLoadingByAccountId[String(acc.id)] === true"
+              :request-batched-usage="queueBatchedUsage"
+              :homepage-url="accountHomepageUrl(acc)"
+              :display-email="accountDisplayEmail(acc)"
+              :open-a-i-auth-mode="getOpenAIAuthMode(acc)"
+              :plan-type="getAccountPlanType(acc)"
+              :antigravity-tier-label="getAntigravityTierLabel(acc) || undefined"
+              :antigravity-tier-class="getAntigravityTierClass(acc)"
+              :groups="accountGroupsForRow(acc)"
+              @toggle-select="toggleSel"
+              @toggle-schedulable="handleToggleSchedulable"
+              @show-temp-unsched="handleShowTempUnsched"
+              @test="handleTest"
+              @edit="handleEdit"
+              @open-menu="openMenu"
+              @account-updated="handleAccountUpdated"
+              @usage-loaded="handleAccountUsageLoaded"
+            />
+          </div>
+        </div>
+
+        <!-- Table View (Classic) -->
+        <div v-else ref="accountTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DataTable
           ref="dataTableRef"
           :columns="cols"
@@ -512,6 +589,7 @@ import AccountTableActions from '@/components/admin/account/AccountTableActions.
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
 import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
+import AccountCard from '@/components/admin/account/AccountCard.vue'
 import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
@@ -695,6 +773,18 @@ const showAutoRefreshDropdown = ref(false)
 const autoRefreshDropdownRef = ref<HTMLElement | null>(null)
 const AUTO_REFRESH_STORAGE_KEY = 'account-auto-refresh'
 const autoRefreshIntervals = [5, 10, 15, 30] as const
+
+// View mode: 'card' | 'table'
+const VIEW_MODE_STORAGE_KEY = 'accounts-view-mode'
+const viewMode = ref<'card' | 'table'>(
+  (typeof window !== 'undefined' && (localStorage.getItem(VIEW_MODE_STORAGE_KEY) as 'card' | 'table')) || 'card'
+)
+const setViewMode = (mode: 'card' | 'table') => {
+  viewMode.value = mode
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(VIEW_MODE_STORAGE_KEY, mode)
+  }
+}
 const autoRefreshEnabled = ref(false)
 const autoRefreshIntervalSeconds = ref<(typeof autoRefreshIntervals)[number]>(30)
 const autoRefreshCountdown = ref(0)

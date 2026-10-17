@@ -1,5 +1,8 @@
 export default {
     accounts: {
+      viewModeCard: 'Card View',
+      viewModeTable: 'Table View',
+      test: 'Test',
       title: 'Account Management',
       description: 'Manage AI platform accounts and credentials',
       createAccount: 'Create Account',

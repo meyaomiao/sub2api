@@ -42,6 +42,7 @@ const icons = {
   chevronDown: 'M19.5 8.25l-7.5 7.5-7.5-7.5',
   chevronRight: 'M8.25 4.5l7.5 7.5-7.5 7.5',
   chevronLeft: 'M15.75 19.5L8.25 12l7.5-7.5',
+  table: 'M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5M3.75 6.75v10.5m16.5-10.5v10.5M9 6.75v10.5m6-10.5v10.5',
 
   // UI Elements
   check: 'M4.5 12.75l6 6 9-13.5',

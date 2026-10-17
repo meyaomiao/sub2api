@@ -122,6 +122,14 @@
           </template>
         </UsageFilters>
 
+        <div v-show="activeTab === 'all'" class="overflow-hidden rounded-b-2xl">
+          <AllRequestsTable
+            :items="allRows"
+            :loading="allLoading"
+            @open-error-detail="openError"
+          />
+          <Pagination v-if="allTotal > 0" :page="allPage" :total="allTotal" :page-size="allPageSize" @update:page="onAllPage" @update:pageSize="onAllPageSize" />
+        </div>
         <div v-show="activeTab === 'usage'" class="overflow-hidden rounded-b-2xl">
           <UsageTable
             flat
@@ -200,8 +208,9 @@ import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import OpsErrorLogTable from '@/views/admin/ops/components/OpsErrorLogTable.vue'
 import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
-import { listErrorLogs } from '@/api/admin/ops'
-import type { OpsErrorLog } from '@/api/admin/ops'
+import AllRequestsTable from '@/components/admin/usage/AllRequestsTable.vue'
+import { listErrorLogs, listRequestDetails } from '@/api/admin/ops'
+import type { OpsErrorLog, OpsRequestDetail } from '@/api/admin/ops'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -525,6 +534,10 @@ const applyFilters = () => {
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
   errPage.value = 1
+  allPage.value = 1
+  if (activeTab.value === 'all') {
+    loadAllRequests()
+  }
   if (activeTab.value === 'errors') {
     loadAdminErrors()
   } else {
@@ -537,6 +550,7 @@ const refreshData = () => {
   loadStats(true)
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
+  if (activeTab.value === 'all') loadAllRequests()
   if (activeTab.value === 'errors') loadAdminErrors()
   if (rankingMounted.value) rankingRef.value?.reload()
 }
@@ -783,9 +797,10 @@ const loadSavedColumns = () => {
 }
 
 // Detail tabs
-type DetailTab = 'usage' | 'errors' | 'ranking'
-const activeTab = ref<DetailTab>('usage')
+type DetailTab = 'all' | 'usage' | 'errors' | 'ranking'
+const activeTab = ref<DetailTab>('all')
 const detailTabs = computed(() => [
+  { key: 'all' as const, label: t('usage.tabs.all'), icon: 'clock' as const },
   { key: 'usage' as const, label: t('usage.tabs.usage'), icon: 'document' as const },
   { key: 'errors' as const, label: t('usage.tabs.errors'), icon: 'exclamationTriangle' as const },
   { key: 'ranking' as const, label: t('usage.tabs.ranking'), icon: 'chart' as const },
@@ -794,8 +809,51 @@ const usageFiltersRef = ref<InstanceType<typeof UsageFilters> | null>(null)
 const rankingMounted = ref(false)
 const rankingRef = ref<InstanceType<typeof UserTokenRanking> | null>(null)
 
+// All requests (combined timeline) state
+const allRows = ref<OpsRequestDetail[]>([])
+const allLoading = ref(false)
+const allPage = ref(1)
+const allPageSize = ref(20)
+const allTotal = ref(0)
+
+const loadAllRequests = async () => {
+  allLoading.value = true
+  try {
+    const resp = await listRequestDetails({
+      page: allPage.value,
+      page_size: allPageSize.value,
+      kind: 'all',
+      start_time: toRFC3339(filters.value.start_date),
+      end_time: toRFC3339(filters.value.end_date, true),
+      user_id: filters.value.user_id ?? undefined,
+      api_key_id: filters.value.api_key_id ?? undefined,
+      account_id: filters.value.account_id ?? undefined,
+      group_id: filters.value.group_id ?? undefined,
+      model: filters.value.model || undefined,
+    })
+    allRows.value = resp.items
+    allTotal.value = resp.total
+  } catch (error) {
+    console.error('Failed to load all requests:', error)
+  } finally {
+    allLoading.value = false
+  }
+}
+
+const onAllPage = (p: number) => {
+  allPage.value = p
+  loadAllRequests()
+}
+
+const onAllPageSize = (s: number) => {
+  allPageSize.value = s
+  allPage.value = 1
+  loadAllRequests()
+}
+
 const switchTab = (tab: DetailTab) => {
   activeTab.value = tab
+  if (tab === 'all') loadAllRequests()
   if (tab === 'errors' && errRows.value.length === 0) loadAdminErrors()
   if (tab === 'ranking') rankingMounted.value = true
 }
@@ -867,6 +925,7 @@ const handleColumnClickOutside = (event: MouseEvent) => {
 onMounted(() => {
   applyRouteQueryFilters()
   void loadRouteUserFilterLabel()
+  loadAllRequests()
   loadLogs()
   loadStats()
   loadModelStats(modelDistributionSource.value, true)

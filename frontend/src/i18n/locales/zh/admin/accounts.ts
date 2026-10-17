@@ -1,5 +1,8 @@
 export default {
     accounts: {
+      viewModeCard: '卡片视图',
+      viewModeTable: '表格视图',
+      test: '测试',
       title: '账号管理',
       description: '管理 AI 平台账号和 Cookie',
       createAccount: '添加账号',
