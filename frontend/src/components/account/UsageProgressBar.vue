@@ -12,24 +12,6 @@
         <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
           {{ formatTokens }}
         </span>
-        <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-          A ${{ formatAccountCost }}
-        </span>
-        <span
-          v-if="windowStats?.user_cost != null"
-          class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
-          :title="t('usage.userBilled')"
-        >
-          U ${{ formatUserCost }}
-        </span>
-        <span
-          v-if="estimatedTotalCost != null"
-          data-test="estimated-total-cost"
-          class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
-          :title="t('admin.accounts.usageWindow.estimatedTotalCostTooltip')"
-        >
-          {{ t('admin.accounts.usageWindow.estimatedTotalCost', { cost: estimatedTotalCost.toFixed(2) }) }}
-        </span>
       </div>
     </div>
 
@@ -41,7 +23,7 @@
       </span>
 
       <!-- Progress bar container -->
-      <div class="h-1.5 w-8 shrink-0 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+      <div class="h-2 flex-1 min-w-[50px] overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
         <div
           :class="['h-full transition-all duration-300', barClass]"
           :style="{ width: barWidth }"
@@ -49,12 +31,12 @@
       </div>
 
       <!-- Percentage -->
-      <span :class="['w-[32px] shrink-0 text-right text-[10px] font-medium', textClass]">
+      <span :class="['w-[36px] shrink-0 text-right text-[10px] font-medium font-mono', textClass]">
         {{ displayPercent }}
       </span>
 
       <!-- Reset time -->
-      <span v-if="shouldShowResetTime" class="shrink-0 text-[10px] text-gray-400">
+      <span v-if="shouldShowResetTime" class="min-w-[48px] shrink-0 text-right text-[10px] text-gray-400 font-mono">
         {{ formatResetTime }}
       </span>
     </div>
@@ -129,8 +111,8 @@ const labelClass = computed(() => {
 // 监控页「Pro/7 天」类组合标签。百分比列在两种模式下保持不变。
 const labelSizeClass = computed(() =>
   props.labelWidth === 'auto'
-    ? 'max-w-[72px] shrink-0 truncate rounded px-1 text-left text-[10px] font-medium'
-    : 'w-[32px] shrink-0 rounded px-1 text-center text-[10px] font-medium'
+    ? 'max-w-[72px] shrink-0 truncate rounded px-1.5 py-0.5 text-left text-[10px] font-medium'
+    : 'min-w-[42px] shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-medium'
 )
 
 // Progress bar color based on utilization
@@ -230,15 +212,4 @@ const formatTokens = computed(() => {
   if (!props.windowStats) return ''
   return formatCompactNumber(props.windowStats.tokens)
 })
-
-const formatAccountCost = computed(() => {
-  if (!props.windowStats) return '0.00'
-  return props.windowStats.cost.toFixed(2)
-})
-
-const formatUserCost = computed(() => {
-  if (!props.windowStats || props.windowStats.user_cost == null) return '0.00'
-  return props.windowStats.user_cost.toFixed(2)
-})
-
 </script>

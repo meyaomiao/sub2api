@@ -98,10 +98,10 @@
     </div>
 
     <!-- Usage Windows (Progress Bars) Container -->
-    <div class="my-3 rounded-lg border border-gray-100 bg-gray-50/70 p-2.5 dark:border-dark-700 dark:bg-dark-700/30">
-      <div class="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1.5 flex items-center justify-between">
-        <span>{{ t('admin.accounts.columns.usageWindows') }}</span>
-        <span v-if="account.proxy" class="text-[10px] text-gray-400 truncate max-w-[120px]" :title="account.proxy.name">
+    <div class="my-2.5 rounded-xl border border-gray-100 bg-gray-50/80 p-3 dark:border-dark-700 dark:bg-dark-700/40">
+      <div class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-2 flex items-center justify-between">
+        <span class="tracking-wide uppercase text-[10px]">{{ t('admin.accounts.columns.usageWindows') }}</span>
+        <span v-if="account.proxy" class="text-[10px] text-gray-400 truncate max-w-[120px] font-normal" :title="account.proxy.name">
           🌐 {{ account.proxy.country_code || account.proxy.name }}
         </span>
       </div>
@@ -120,10 +120,10 @@
     </div>
 
     <!-- Metadata Section: Today Stats, Groups, Notes -->
-    <div class="space-y-2 text-xs">
+    <div class="space-y-1.5 text-xs py-1">
       <!-- Today Stats -->
       <div class="flex items-center justify-between gap-2 px-1">
-        <span class="text-[11px] text-gray-400 shrink-0">{{ t('admin.accounts.columns.todayStats') }}:</span>
+        <span class="text-[11px] text-gray-400 shrink-0 font-medium">{{ t('admin.accounts.columns.todayStats') }}:</span>
         <div class="flex items-center gap-2 overflow-hidden">
           <AccountTodayStatsCell
             :stats="todayStats"
@@ -136,7 +136,7 @@
 
       <!-- Groups Tag -->
       <div v-if="groups.length" class="flex items-center gap-1.5 px-1 overflow-hidden">
-        <span class="text-[11px] text-gray-400 shrink-0">{{ t('admin.accounts.columns.groups') }}:</span>
+        <span class="text-[11px] text-gray-400 shrink-0 font-medium">{{ t('admin.accounts.columns.groups') }}:</span>
         <AccountGroupsCell :groups="groups" :max-display="3" />
       </div>
 

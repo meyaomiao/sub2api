@@ -295,42 +295,53 @@
       </div>
 
       <!-- Usage data from API -->
-      <div v-else-if="hasAntigravityQuotaFromAPI" class="space-y-1">
-        <!-- Gemini 5h Limit -->
-        <UsageProgressBar
-          v-if="antigravity3FlashUsageFromAPI !== null"
-          :label="t('admin.accounts.usageWindow.gemini3Flash')"
-          :utilization="antigravity3FlashUsageFromAPI.utilization"
-          :resets-at="antigravity3FlashUsageFromAPI.resetTime"
-          color="emerald"
-        />
+      <div v-else-if="hasAntigravityQuotaFromAPI" class="space-y-1.5">
+        <!-- Gemini Group -->
+        <div v-if="antigravity3FlashUsageFromAPI !== null || antigravity3ProUsageFromAPI !== null" class="space-y-1">
+          <div class="flex items-center justify-between text-[10px] text-gray-400 font-medium">
+            <span class="tracking-wide">Gemini 模型</span>
+          </div>
+          <!-- Gemini 5h Limit -->
+          <UsageProgressBar
+            v-if="antigravity3FlashUsageFromAPI !== null"
+            :label="t('admin.accounts.usageWindow.gemini3Flash')"
+            :utilization="antigravity3FlashUsageFromAPI.utilization"
+            :resets-at="antigravity3FlashUsageFromAPI.resetTime"
+            color="emerald"
+          />
 
-        <!-- Gemini Weekly Limit -->
-        <UsageProgressBar
-          v-if="antigravity3ProUsageFromAPI !== null"
-          :label="t('admin.accounts.usageWindow.gemini3Pro')"
-          :utilization="antigravity3ProUsageFromAPI.utilization"
-          :resets-at="antigravity3ProUsageFromAPI.resetTime"
-          color="indigo"
-        />
+          <!-- Gemini Weekly Limit -->
+          <UsageProgressBar
+            v-if="antigravity3ProUsageFromAPI !== null"
+            :label="t('admin.accounts.usageWindow.gemini3Pro')"
+            :utilization="antigravity3ProUsageFromAPI.utilization"
+            :resets-at="antigravity3ProUsageFromAPI.resetTime"
+            color="indigo"
+          />
+        </div>
 
-        <!-- Gemini 3 Image -->
-        <UsageProgressBar
-          v-if="antigravity3ImageUsageFromAPI !== null"
-          :label="t('admin.accounts.usageWindow.gemini3Image')"
-          :utilization="antigravity3ImageUsageFromAPI.utilization"
-          :resets-at="antigravity3ImageUsageFromAPI.resetTime"
-          color="purple"
-        />
+        <!-- Claude / 3P Group -->
+        <div v-if="antigravityClaudeUsageFromAPI !== null" class="space-y-1 pt-1 border-t border-dashed border-gray-200 dark:border-dark-600">
+          <div class="flex items-center justify-between text-[10px] text-gray-400 font-medium">
+            <span class="tracking-wide">Claude / GPT 模型</span>
+          </div>
+          <UsageProgressBar
+            :label="t('admin.accounts.usageWindow.claude')"
+            :utilization="antigravityClaudeUsageFromAPI.utilization"
+            :resets-at="antigravityClaudeUsageFromAPI.resetTime"
+            color="amber"
+          />
+        </div>
 
-        <!-- Claude / 3P -->
-        <UsageProgressBar
-          v-if="antigravityClaudeUsageFromAPI !== null"
-          :label="t('admin.accounts.usageWindow.claude')"
-          :utilization="antigravityClaudeUsageFromAPI.utilization"
-          :resets-at="antigravityClaudeUsageFromAPI.resetTime"
-          color="amber"
-        />
+        <!-- Gemini 3 Image (if present) -->
+        <div v-if="antigravity3ImageUsageFromAPI !== null" class="space-y-1 pt-1 border-t border-dashed border-gray-200 dark:border-dark-600">
+          <UsageProgressBar
+            :label="t('admin.accounts.usageWindow.gemini3Image')"
+            :utilization="antigravity3ImageUsageFromAPI.utilization"
+            :resets-at="antigravity3ImageUsageFromAPI.resetTime"
+            color="purple"
+          />
+        </div>
 
         <div v-if="aiCreditsDisplay" class="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
           💳 {{ t('admin.accounts.aiCreditsBalance') }}: {{ aiCreditsDisplay }}
