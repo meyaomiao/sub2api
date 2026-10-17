@@ -6,99 +6,100 @@
       !account.schedulable ? 'opacity-75 bg-gray-50/50 dark:bg-dark-800/50' : ''
     ]"
   >
-    <!-- Top Header: Selection + Name/Platform + Schedulable Toggle -->
-    <div class="flex items-start justify-between gap-2">
-      <div class="flex items-start gap-2.5 min-w-0 flex-1">
-        <!-- Checkbox -->
-        <input
-          type="checkbox"
-          :checked="isSelected"
-          @change="$emit('toggle-select', account.id)"
-          class="mt-1 h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-        />
+    <!-- Top Header: Selection + Account Name/ID + Schedulable Switch -->
+    <div>
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          <!-- Checkbox -->
+          <input
+            type="checkbox"
+            :checked="isSelected"
+            @change="$emit('toggle-select', account.id)"
+            class="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
 
-        <!-- Title & Info -->
-        <div class="flex flex-col min-w-0 flex-1">
-          <div class="flex items-center gap-1.5 flex-wrap">
-            <span class="font-mono text-xs text-gray-400 dark:text-gray-500">#{{ account.id }}</span>
+          <!-- Account Name -->
+          <div class="flex items-center gap-1.5 min-w-0 flex-1">
+            <span class="font-mono text-xs text-gray-400 dark:text-gray-500 shrink-0">#{{ account.id }}</span>
             <a
               v-if="homepageUrl"
               :href="homepageUrl"
               target="_blank"
               rel="noopener noreferrer"
-              class="truncate font-semibold text-gray-900 hover:underline dark:text-white max-w-[180px] text-sm"
+              class="truncate font-semibold text-gray-900 hover:underline dark:text-white text-sm"
               :title="account.name"
             >
               {{ account.name }}
             </a>
             <span
               v-else
-              class="truncate font-semibold text-gray-900 dark:text-white max-w-[180px] text-sm"
+              class="truncate font-semibold text-gray-900 dark:text-white text-sm"
               :title="account.name"
             >
               {{ account.name }}
             </span>
           </div>
+        </div>
 
-          <!-- Email or sub id -->
-          <span
-            v-if="displayEmail"
-            class="truncate text-xs text-gray-500 dark:text-gray-400 max-w-[220px]"
-            :title="displayEmail"
+        <!-- Schedulable Toggle -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button
+            @click="$emit('toggle-schedulable', account)"
+            :disabled="togglingSchedulable"
+            class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800"
+            :class="[account.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']"
+            :title="account.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')"
           >
-            {{ displayEmail }}
-          </span>
+            <span
+              class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="[account.schedulable ? 'translate-x-4' : 'translate-x-0']"
+            />
+          </button>
         </div>
       </div>
 
-      <!-- Schedulable Toggle & Status -->
-      <div class="flex items-center gap-1.5 flex-shrink-0">
-        <button
-          @click="$emit('toggle-schedulable', account)"
-          :disabled="togglingSchedulable"
-          class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800"
-          :class="[account.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']"
-          :title="account.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')"
+      <!-- Email Subtitle -->
+      <div v-if="displayEmail" class="mt-1 pl-6">
+        <span
+          class="block truncate text-xs text-gray-500 dark:text-gray-400"
+          :title="displayEmail"
         >
-          <span
-            class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-            :class="[account.schedulable ? 'translate-x-4' : 'translate-x-0']"
-          />
-        </button>
+          {{ displayEmail }}
+        </span>
+      </div>
+
+      <!-- Platform, Type & Status Badges -->
+      <div class="mt-2.5 flex flex-wrap items-center gap-1.5 pl-6">
+        <PlatformTypeBadge
+          :platform="account.platform"
+          :type="account.type"
+          :auth-mode="openAIAuthMode"
+          :plan-type="planType"
+          :privacy-mode="privacyModeString"
+          :subscription-expires-at="subscriptionExpiresAtString"
+        />
+        <span
+          v-if="antigravityTierLabel"
+          :class="['inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', antigravityTierClass]"
+        >
+          {{ antigravityTierLabel }}
+        </span>
+
+        <!-- Status Indicator -->
+        <div class="scale-90 origin-left">
+          <AccountStatusIndicator :account="account" @show-temp-unsched="$emit('show-temp-unsched', account)" />
+        </div>
+
+        <!-- Multiplier -->
+        <span v-if="account.rate_multiplier && account.rate_multiplier !== 1" class="rounded bg-gray-100 dark:bg-dark-700 px-1.5 py-0.5 text-[10px] font-mono font-medium text-gray-600 dark:text-gray-300">
+          {{ account.rate_multiplier }}x
+        </span>
       </div>
     </div>
 
-    <!-- Badges Row: Platform + Status + Rate Multiplier -->
-    <div class="mt-3 flex flex-wrap items-center gap-1.5">
-      <PlatformTypeBadge
-        :platform="account.platform"
-        :type="account.type"
-        :auth-mode="openAIAuthMode"
-        :plan-type="planType"
-        :privacy-mode="privacyModeString"
-        :subscription-expires-at="subscriptionExpiresAtString"
-      />
-      <span
-        v-if="antigravityTierLabel"
-        :class="['inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', antigravityTierClass]"
-      >
-        {{ antigravityTierLabel }}
-      </span>
-
-      <!-- Status Indicator -->
-      <div class="scale-90 origin-left">
-        <AccountStatusIndicator :account="account" @show-temp-unsched="$emit('show-temp-unsched', account)" />
-      </div>
-
-      <!-- Multiplier -->
-      <span v-if="account.rate_multiplier && account.rate_multiplier !== 1" class="rounded bg-gray-100 dark:bg-dark-700 px-1.5 py-0.5 text-[10px] font-mono font-medium text-gray-600 dark:text-gray-300">
-        {{ account.rate_multiplier }}x
-      </span>
-    </div>
-
-    <!-- CPA Core Metric: Usage Windows (5h / 7d progress bars) -->
-    <div class="mt-3 min-h-[50px] rounded-lg bg-gray-50/80 p-2.5 dark:bg-dark-700/40">
-      <div class="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 flex items-center justify-between">
+    <!-- Usage Windows (Progress Bars) Container -->
+    <div class="my-3 rounded-lg border border-gray-100 bg-gray-50/70 p-2.5 dark:border-dark-700 dark:bg-dark-700/30">
+      <div class="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1.5 flex items-center justify-between">
         <span>{{ t('admin.accounts.columns.usageWindows') }}</span>
         <span v-if="account.proxy" class="text-[10px] text-gray-400 truncate max-w-[120px]" :title="account.proxy.name">
           🌐 {{ account.proxy.country_code || account.proxy.name }}
@@ -118,32 +119,36 @@
       />
     </div>
 
-    <!-- Today Stats Mini Row -->
-    <div class="mt-2.5 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 px-0.5">
-      <div class="flex items-center gap-1.5">
-        <span class="text-[11px] text-gray-400">{{ t('admin.accounts.columns.todayStats') }}:</span>
-        <AccountTodayStatsCell
-          :stats="todayStats"
-          :loading="todayStatsLoading"
-          :error="todayStatsError"
-        />
+    <!-- Metadata Section: Today Stats, Groups, Notes -->
+    <div class="space-y-2 text-xs">
+      <!-- Today Stats -->
+      <div class="flex items-center justify-between gap-2 px-1">
+        <span class="text-[11px] text-gray-400 shrink-0">{{ t('admin.accounts.columns.todayStats') }}:</span>
+        <div class="flex items-center gap-2 overflow-hidden">
+          <AccountTodayStatsCell
+            :stats="todayStats"
+            :loading="todayStatsLoading"
+            :error="todayStatsError"
+          />
+          <AccountCapacityCell :account="account" />
+        </div>
       </div>
-      <AccountCapacityCell :account="account" />
+
+      <!-- Groups Tag -->
+      <div v-if="groups.length" class="flex items-center gap-1.5 px-1 overflow-hidden">
+        <span class="text-[11px] text-gray-400 shrink-0">{{ t('admin.accounts.columns.groups') }}:</span>
+        <AccountGroupsCell :groups="groups" :max-display="3" />
+      </div>
+
+      <!-- Notes -->
+      <div v-if="account.notes" class="truncate text-[11px] text-gray-400 dark:text-gray-500 px-1" :title="account.notes">
+        💬 {{ account.notes }}
+      </div>
     </div>
 
-    <!-- Groups tag -->
-    <div v-if="groups.length" class="mt-2 flex flex-wrap gap-1">
-      <AccountGroupsCell :groups="groups" :max-display="3" />
-    </div>
-
-    <!-- Notes if any -->
-    <div v-if="account.notes" class="mt-2 truncate text-[11px] text-gray-400 dark:text-gray-500" :title="account.notes">
-      💬 {{ account.notes }}
-    </div>
-
-    <!-- Card Footer Action Buttons -->
-    <div class="mt-3.5 flex items-center justify-between border-t border-gray-100 pt-2.5 dark:border-dark-700/60">
-      <div class="text-[10px] text-gray-400">
+    <!-- Card Footer: Last Used + Actions -->
+    <div class="mt-3 flex items-center justify-between border-t border-gray-100 pt-2.5 dark:border-dark-700/60">
+      <div class="text-[11px] text-gray-400">
         {{ account.last_used_at ? formatRelativeTime(account.last_used_at) : '-' }}
       </div>
       <div class="flex items-center gap-1">
@@ -165,10 +170,9 @@
         </button>
         <button
           @click="$emit('open-menu', account, $event)"
-          class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-dark-700 dark:hover:text-gray-200 transition"
-          :title="t('common.more')"
+          class="inline-flex items-center justify-center rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-dark-700 dark:hover:text-gray-200 transition"
         >
-          <Icon name="more" size="sm" />
+          <Icon name="more" size="xs" />
         </button>
       </div>
     </div>

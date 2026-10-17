@@ -225,15 +225,15 @@
           @toggle-schedulable="handleBulkToggleSchedulable"
         />
         <!-- Card Grid View (CPA Style) -->
-        <div v-if="viewMode === 'card'" class="flex-1 overflow-y-auto p-1">
-          <div v-if="loading && (!accounts || accounts.length === 0)" class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            <div v-for="i in 10" :key="i" class="h-56 animate-pulse rounded-xl border border-gray-200 bg-gray-100 dark:border-dark-700 dark:bg-dark-800"></div>
+        <div v-if="viewMode === 'card'" class="flex-1 overflow-y-auto p-2">
+          <div v-if="loading && (!accounts || accounts.length === 0)" class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            <div v-for="i in 10" :key="i" class="h-64 animate-pulse rounded-xl border border-gray-200 bg-gray-100 dark:border-dark-700 dark:bg-dark-800"></div>
           </div>
           <div v-else-if="!accounts || accounts.length === 0" class="flex flex-col items-center justify-center p-12 text-center text-gray-500 dark:text-gray-400">
             <Icon name="inbox" size="lg" class="mb-2 text-gray-400" />
             <p>{{ t('common.noData') }}</p>
           </div>
-          <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div v-else class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             <AccountCard
               v-for="acc in accounts"
               :key="acc.id"
