@@ -193,6 +193,8 @@ type UsageInfo struct {
 	GeminiSharedMinute *UsageProgress `json:"gemini_shared_minute,omitempty"` // Gemini shared pool RPM (Google One / Code Assist)
 	GeminiProMinute    *UsageProgress `json:"gemini_pro_minute,omitempty"`    // Gemini Pro RPM
 	GeminiFlashMinute  *UsageProgress `json:"gemini_flash_minute,omitempty"`  // Gemini Flash RPM
+	Gemini5h           *UsageProgress `json:"gemini_5h,omitempty"`            // Antigravity Gemini 5h 限额
+	GeminiWeekly       *UsageProgress `json:"gemini_weekly,omitempty"`        // Antigravity Gemini Weekly 限额
 
 	// Antigravity 多模型配额
 	AntigravityQuota map[string]*AntigravityModelQuota `json:"antigravity_quota,omitempty"`
@@ -1265,6 +1267,27 @@ func recalcAntigravityRemainingSeconds(info *UsageInfo) {
 			remaining = 0
 		}
 		info.FiveHour.RemainingSeconds = remaining
+	}
+	if info.SevenDay != nil && info.SevenDay.ResetsAt != nil {
+		remaining := int(time.Until(*info.SevenDay.ResetsAt).Seconds())
+		if remaining < 0 {
+			remaining = 0
+		}
+		info.SevenDay.RemainingSeconds = remaining
+	}
+	if info.Gemini5h != nil && info.Gemini5h.ResetsAt != nil {
+		remaining := int(time.Until(*info.Gemini5h.ResetsAt).Seconds())
+		if remaining < 0 {
+			remaining = 0
+		}
+		info.Gemini5h.RemainingSeconds = remaining
+	}
+	if info.GeminiWeekly != nil && info.GeminiWeekly.ResetsAt != nil {
+		remaining := int(time.Until(*info.GeminiWeekly.ResetsAt).Seconds())
+		if remaining < 0 {
+			remaining = 0
+		}
+		info.GeminiWeekly.RemainingSeconds = remaining
 	}
 }
 

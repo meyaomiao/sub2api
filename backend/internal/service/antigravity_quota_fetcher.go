@@ -86,6 +86,13 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 	// 转换为 UsageInfo
 	usageInfo := f.buildUsageInfo(modelsResp, tierRaw, tierNormalized, loadResp)
 
+	// 调用 retrieveUserQuotaSummary 获取真实分组额度（Gemini 5h/weekly，3P 5h/weekly）
+	if summaryResp, err := client.RetrieveUserQuotaSummary(ctx, accessToken, projectID, resolveModelsListReadLimit(f.cfg)); err == nil && summaryResp != nil {
+		f.applyQuotaSummary(usageInfo, summaryResp)
+	} else if err != nil {
+		slog.Debug("retrieveUserQuotaSummary fallback or failed", "error", err)
+	}
+
 	return &QuotaResult{
 		UsageInfo: usageInfo,
 		Raw:       modelsRaw,
@@ -204,6 +211,65 @@ func (f *AntigravityQuotaFetcher) buildUsageInfo(modelsResp *antigravity.FetchAv
 	}
 
 	return info
+}
+
+func parseResetTime(raw string) *time.Time {
+	if raw == "" {
+		return nil
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return &t
+	}
+	return nil
+}
+
+// applyQuotaSummary 解析 retrieveUserQuotaSummary 的分组配额桶并应用到 UsageInfo
+func (f *AntigravityQuotaFetcher) applyQuotaSummary(info *UsageInfo, summary *antigravity.RetrieveUserQuotaSummaryResponse) {
+	if info == nil || summary == nil {
+		return
+	}
+
+	for _, group := range summary.Groups {
+		name := strings.ToLower(group.DisplayName)
+		isGemini := strings.Contains(name, "gemini")
+		is3P := strings.Contains(name, "claude") || strings.Contains(name, "gpt")
+
+		for _, b := range group.Buckets {
+			window := strings.ToLower(b.Window)
+			utilization := (1.0 - b.RemainingFraction) * 100
+			if utilization < 0 {
+				utilization = 0
+			}
+			resetsAt := parseResetTime(b.ResetTime)
+			remainingSec := 0
+			if resetsAt != nil {
+				rem := int(time.Until(*resetsAt).Seconds())
+				if rem > 0 {
+					remainingSec = rem
+				}
+			}
+
+			prog := &UsageProgress{
+				Utilization:      utilization,
+				ResetsAt:         resetsAt,
+				RemainingSeconds: remainingSec,
+			}
+
+			if isGemini {
+				if window == "5h" || strings.Contains(b.BucketID, "5h") {
+					info.Gemini5h = prog
+				} else if window == "weekly" || strings.Contains(b.BucketID, "weekly") {
+					info.GeminiWeekly = prog
+				}
+			} else if is3P {
+				if window == "5h" || strings.Contains(b.BucketID, "5h") {
+					info.FiveHour = prog
+				} else if window == "weekly" || strings.Contains(b.BucketID, "weekly") {
+					info.SevenDay = prog
+				}
+			}
+		}
+	}
 }
 
 // GetProxyURL 获取账户的代理 URL

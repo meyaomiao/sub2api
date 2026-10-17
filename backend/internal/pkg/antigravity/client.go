@@ -816,6 +816,90 @@ func isAllowedFetchAvailableModelsRedirectHost(host string) bool {
 	return false
 }
 
+// UserQuotaBucket 配额桶详情
+type UserQuotaBucket struct {
+	BucketID          string  `json:"bucketId"`
+	DisplayName       string  `json:"displayName"`
+	Window            string  `json:"window"`
+	ResetTime         string  `json:"resetTime"`
+	Description       string  `json:"description,omitempty"`
+	RemainingFraction float64 `json:"remainingFraction"`
+}
+
+// UserQuotaGroup 配额分组详情
+type UserQuotaGroup struct {
+	DisplayName string            `json:"displayName"`
+	Description string            `json:"description,omitempty"`
+	Buckets     []UserQuotaBucket `json:"buckets"`
+}
+
+// RetrieveUserQuotaSummaryResponse 接口响应
+type RetrieveUserQuotaSummaryResponse struct {
+	Groups      []UserQuotaGroup `json:"groups"`
+	Description string           `json:"description,omitempty"`
+}
+
+// RetrieveUserQuotaSummary 调用 retrieveUserQuotaSummary 获取配额汇总
+func (c *Client) RetrieveUserQuotaSummary(ctx context.Context, accessToken, projectID string, bodyLimit int64) (*RetrieveUserQuotaSummaryResponse, error) {
+	if c == nil || c.httpClient == nil {
+		return nil, errors.New("antigravity client is not configured")
+	}
+	if bodyLimit <= 0 {
+		bodyLimit = 1024 * 1024 // 1MB 默认
+	}
+
+	reqBody := FetchAvailableModelsRequest{Project: projectID}
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("序列化请求失败: %w", err)
+	}
+
+	fetchClient := c.fetchAvailableModelsHTTPClient()
+	endpoints := []string{
+		antigravityDailyBaseURL,
+		"https://daily-cloudcode-pa.sandbox.googleapis.com",
+		antigravityProdBaseURL,
+	}
+
+	var lastErr error
+	for _, baseURL := range endpoints {
+		apiURL := baseURL + "/v1internal:retrieveUserQuotaSummary"
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, strings.NewReader(string(bodyBytes)))
+		if err != nil {
+			lastErr = fmt.Errorf("创建请求失败: %w", err)
+			continue
+		}
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", GetUserAgentForContext(ctx))
+
+		resp, err := servertiming.Do(fetchClient, req)
+		if err != nil {
+			lastErr = fmt.Errorf("retrieveUserQuotaSummary 请求失败: %w", err)
+			continue
+		}
+
+		respBodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, bodyLimit+1))
+		_ = resp.Body.Close()
+		if err != nil {
+			lastErr = fmt.Errorf("读取响应失败: %w", err)
+			continue
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			var summaryResp RetrieveUserQuotaSummaryResponse
+			if err := json.Unmarshal(respBodyBytes, &summaryResp); err != nil {
+				lastErr = fmt.Errorf("响应解析失败: %w", err)
+				continue
+			}
+			return &summaryResp, nil
+		}
+		lastErr = fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBodyBytes))
+	}
+
+	return nil, lastErr
+}
+
 // ── Privacy API ──────────────────────────────────────────────────────
 
 // privacyBaseURL 隐私设置 API 仅使用 daily 端点（与 Antigravity 客户端行为一致）

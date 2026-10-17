@@ -296,22 +296,22 @@
 
       <!-- Usage data from API -->
       <div v-else-if="hasAntigravityQuotaFromAPI" class="space-y-1">
-        <!-- Gemini 3 Pro -->
-        <UsageProgressBar
-          v-if="antigravity3ProUsageFromAPI !== null"
-          :label="t('admin.accounts.usageWindow.gemini3Pro')"
-          :utilization="antigravity3ProUsageFromAPI.utilization"
-          :resets-at="antigravity3ProUsageFromAPI.resetTime"
-          color="indigo"
-        />
-
-        <!-- Gemini 3 Flash -->
+        <!-- Gemini 5h Limit -->
         <UsageProgressBar
           v-if="antigravity3FlashUsageFromAPI !== null"
           :label="t('admin.accounts.usageWindow.gemini3Flash')"
           :utilization="antigravity3FlashUsageFromAPI.utilization"
           :resets-at="antigravity3FlashUsageFromAPI.resetTime"
           color="emerald"
+        />
+
+        <!-- Gemini Weekly Limit -->
+        <UsageProgressBar
+          v-if="antigravity3ProUsageFromAPI !== null"
+          :label="t('admin.accounts.usageWindow.gemini3Pro')"
+          :utilization="antigravity3ProUsageFromAPI.utilization"
+          :resets-at="antigravity3ProUsageFromAPI.resetTime"
+          color="indigo"
         />
 
         <!-- Gemini 3 Image -->
@@ -323,7 +323,7 @@
           color="purple"
         />
 
-        <!-- Claude -->
+        <!-- Claude / 3P -->
         <UsageProgressBar
           v-if="antigravityClaudeUsageFromAPI !== null"
           :label="t('admin.accounts.usageWindow.claude')"
@@ -865,7 +865,8 @@ interface AntigravityUsageResult {
 
 // 检查是否有从 API 获取的配额数据
 const hasAntigravityQuotaFromAPI = computed(() => {
-  return usageInfo.value?.antigravity_quota && Object.keys(usageInfo.value.antigravity_quota).length > 0
+  if (usageInfo.value?.gemini_5h || usageInfo.value?.gemini_weekly) return true
+  return !!usageInfo.value?.antigravity_quota && Object.keys(usageInfo.value.antigravity_quota).length > 0
 })
 
 // 从 API 配额数据中获取使用率（多模型取最高使用率）
@@ -905,8 +906,14 @@ const getAntigravityUsageFromAPI = (
 }
 
 // Gemini 3 Pro from API
-const antigravity3ProUsageFromAPI = computed(() =>
-  getAntigravityUsageFromAPI([
+const antigravity3ProUsageFromAPI = computed(() => {
+  if (usageInfo.value?.gemini_weekly) {
+    return {
+      utilization: Math.round(usageInfo.value.gemini_weekly.utilization),
+      resetTime: usageInfo.value.gemini_weekly.resets_at || null
+    }
+  }
+  return getAntigravityUsageFromAPI([
     'gemini-3-pro-low',
     'gemini-3-pro-high',
     'gemini-3-pro-preview',
@@ -914,11 +921,17 @@ const antigravity3ProUsageFromAPI = computed(() =>
     'gemini-3.1-pro-high',
     'gemini-2.5-pro'
   ])
-)
+})
 
-// Gemini 3 Flash from API
-const antigravity3FlashUsageFromAPI = computed(() =>
-  getAntigravityUsageFromAPI([
+// Gemini 3 Flash from API (5h limit优先从 gemini_5h 取，与 CPA 一致)
+const antigravity3FlashUsageFromAPI = computed(() => {
+  if (usageInfo.value?.gemini_5h) {
+    return {
+      utilization: Math.round(usageInfo.value.gemini_5h.utilization),
+      resetTime: usageInfo.value.gemini_5h.resets_at || null
+    }
+  }
+  return getAntigravityUsageFromAPI([
     'gemini-3.8-flash-high',
     'gemini-3.8-flash-medium',
     'gemini-3.8-flash-low',
@@ -942,7 +955,7 @@ const antigravity3FlashUsageFromAPI = computed(() =>
     'gemini-2.5-flash',
     'gemini-2.5-flash-lite'
   ])
-)
+})
 
 // Gemini Image from API
 const antigravity3ImageUsageFromAPI = computed(() =>
