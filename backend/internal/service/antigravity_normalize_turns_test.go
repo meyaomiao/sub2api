@@ -24,15 +24,19 @@ func TestNormalizeGeminiTurns_MergeConsecutiveSameRoles(t *testing.T) {
 	err = json.Unmarshal(out, &payload)
 	require.NoError(t, err)
 
-	contents := payload["contents"].([]any)
+	contents, ok := payload["contents"].([]any)
+	require.True(t, ok)
 	require.Len(t, contents, 2, "Consecutive model turns should be merged into one")
 
-	first := contents[0].(map[string]any)
+	first, ok := contents[0].(map[string]any)
+	require.True(t, ok)
 	assert.Equal(t, "user", first["role"])
 
-	second := contents[1].(map[string]any)
+	second, ok := contents[1].(map[string]any)
+	require.True(t, ok)
 	assert.Equal(t, "model", second["role"])
-	parts := second["parts"].([]any)
+	parts, ok := second["parts"].([]any)
+	require.True(t, ok)
 	assert.Len(t, parts, 2, "Merged turn should contain both parts")
 }
 
@@ -50,8 +54,13 @@ func TestNormalizeGeminiTurns_PrependUserIfStartingWithFunctionCall(t *testing.T
 	err = json.Unmarshal(out, &payload)
 	require.NoError(t, err)
 
-	contents := payload["contents"].([]any)
+	contents, ok := payload["contents"].([]any)
+	require.True(t, ok)
 	require.Len(t, contents, 2)
-	assert.Equal(t, "user", contents[0].(map[string]any)["role"])
-	assert.Equal(t, "model", contents[1].(map[string]any)["role"])
+	first, ok := contents[0].(map[string]any)
+	require.True(t, ok)
+	second, ok := contents[1].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "user", first["role"])
+	assert.Equal(t, "model", second["role"])
 }
