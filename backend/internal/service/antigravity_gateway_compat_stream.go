@@ -173,7 +173,7 @@ func (s *antigravityCompatStreamSession) finish() (*antigravityStreamResult, err
 			s.adapter.WriteError(s.writer, "empty_stream")
 			return s.result(false), errors.New("empty Antigravity compatibility stream after keepalive")
 		}
-		return nil, antigravityCompatEmptyStreamError()
+		return nil, antigravityCompatEmptyStreamError(s.processor.MalformedFunctionCall())
 	}
 	s.adapter.Finalize(s.writer)
 	return s.result(s.writer.Disconnected()), nil
@@ -334,7 +334,7 @@ func (s *AntigravityGatewayService) handleAntigravityCompatStreamWithKeepaliveIn
 			writeAntigravityCompatStreamError(c, adapter, writer, "stream_timeout")
 			return session.collectResult(false), fmt.Errorf("pre-content stream timeout")
 		}
-		return nil, antigravityCompatEmptyStreamError()
+		return nil, antigravityCompatEmptyStreamError(session.processor.MalformedFunctionCall())
 	}
 
 	for {
@@ -392,7 +392,7 @@ func handleAntigravityCompatEmptyStream(c *gin.Context, session *antigravityComp
 		writeAntigravityCompatStreamError(c, session.adapter, session.writer, "empty_stream")
 		return session.collectResult(false), errors.New("empty Antigravity compatibility stream after keepalive")
 	}
-	return nil, antigravityCompatEmptyStreamError()
+	return nil, antigravityCompatEmptyStreamError(session.processor.MalformedFunctionCall())
 }
 
 func (s *AntigravityGatewayService) startAntigravityCompatScanner(
@@ -483,7 +483,7 @@ func (s *AntigravityGatewayService) handleAntigravityCompatReadError(
 			writeAntigravityCompatStreamError(c, session.adapter, session.writer, "stream_read_error")
 			return session.collectResult(false), fmt.Errorf("stream read error: %w", err)
 		}
-		return nil, antigravityCompatEmptyStreamError()
+		return nil, antigravityCompatEmptyStreamError(session.processor.MalformedFunctionCall())
 	}
 	if disconnect, handled := handleStreamReadError(err, session.writer.Disconnected(), prefix); handled {
 		return session.collectResult(disconnect), nil
@@ -507,12 +507,15 @@ func writeAntigravityCompatStreamError(
 	MarkResponseCommitted(c)
 }
 
-func antigravityCompatEmptyStreamError() error {
-	logger.LegacyPrintf("service.antigravity_gateway", "Empty Antigravity compatibility stream, triggering failover")
+func antigravityCompatEmptyStreamError(isMalformedFunctionCall bool) error {
+	logger.LegacyPrintf("service.antigravity_gateway", "Empty Antigravity compatibility stream (malformed_fc=%v), triggering failover", isMalformedFunctionCall)
 	return &UpstreamFailoverError{
 		StatusCode:             http.StatusBadGateway,
 		ResponseBody:           []byte(`{"error":"empty stream response from upstream"}`),
-		RetryableOnSameAccount: true,
+		// 如果是上游返回的 MALFORMED_FUNCTION_CALL，说明是模型生成畸形问题，
+		// 严禁在同一账号毫秒级连击重试（避免瞬间打满并发触发 429），且标记为请求级瞬时问题（不惩罚下线账号）
+		RetryableOnSameAccount: !isMalformedFunctionCall,
+		RequestScopedTransient: isMalformedFunctionCall,
 	}
 }
 

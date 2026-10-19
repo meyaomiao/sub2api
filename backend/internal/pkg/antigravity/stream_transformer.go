@@ -41,6 +41,7 @@ type StreamingProcessor struct {
 	cacheReadTokens   int
 	imageOutputTokens int
 	hasContent        bool
+	malformedFunctionCall bool
 }
 
 // NewStreamingProcessor 创建流式响应处理器
@@ -133,6 +134,7 @@ func (p *StreamingProcessor) ProcessLine(line string) []byte {
 	if len(geminiResp.Candidates) > 0 {
 		finishReason := geminiResp.Candidates[0].FinishReason
 		if finishReason == "MALFORMED_FUNCTION_CALL" {
+			p.malformedFunctionCall = true
 			log.Printf("[Antigravity] MALFORMED_FUNCTION_CALL detected in stream for model %s", p.originalModel)
 			if geminiResp.Candidates[0].Content != nil {
 				if b, err := json.Marshal(geminiResp.Candidates[0].Content); err == nil {
@@ -174,6 +176,11 @@ func (p *StreamingProcessor) Finish() ([]byte, *ClaudeUsage) {
 // MessageStartSent 报告流中是否已发出过 message_start 事件（即是否收到过有效的上游数据）
 func (p *StreamingProcessor) MessageStartSent() bool {
 	return p.messageStartSent
+}
+
+// MalformedFunctionCall 报告流中是否出现了上游 MALFORMED_FUNCTION_CALL 结束标记
+func (p *StreamingProcessor) MalformedFunctionCall() bool {
+	return p.malformedFunctionCall
 }
 
 // HasContent reports whether any substantive text, thinking, or tool calls were emitted.
