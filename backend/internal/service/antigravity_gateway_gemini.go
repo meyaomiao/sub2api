@@ -142,6 +142,12 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 	}
 
 	injectedBody = ensureGeminiFunctionCallThoughtSignatures(injectedBody)
+	if filtered, filterErr := filterEmptyPartsFromGeminiRequest(injectedBody); filterErr == nil {
+		injectedBody = filtered
+	}
+	if normalized, normErr := normalizeGeminiTurns(injectedBody); normErr == nil {
+		injectedBody = normalized
+	}
 
 	// 包装请求
 	wrappedBody, err := s.wrapV1InternalRequest(projectID, mappedModel, injectedBody)
@@ -574,5 +580,91 @@ func filterEmptyPartsFromGeminiRequest(body []byte) ([]byte, error) {
 	}
 
 	payload["contents"] = filtered
+	return json.Marshal(payload)
+}
+
+// normalizeGeminiTurns ensures that:
+// 1. A functionCall turn (model) must come immediately after a user turn or a functionResponse turn.
+// 2. Adjacent turns with the same role are merged to strictly adhere to user <-> model turn alternation.
+// 3. If a model turn with functionCall is immediately preceded by a model turn, they are merged.
+func normalizeGeminiTurns(body []byte) ([]byte, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, err
+	}
+
+	contents, ok := payload["contents"].([]any)
+	if !ok || len(contents) == 0 {
+		return body, nil
+	}
+
+	normalized := make([]any, 0, len(contents))
+	modified := false
+
+	for _, c := range contents {
+		contentMap, ok := c.(map[string]any)
+		if !ok {
+			normalized = append(normalized, c)
+			continue
+		}
+
+		role, _ := contentMap["role"].(string)
+		parts, _ := contentMap["parts"].([]any)
+		if len(parts) == 0 {
+			modified = true
+			continue
+		}
+
+		if len(normalized) > 0 {
+			lastContent, ok := normalized[len(normalized)-1].(map[string]any)
+			if ok {
+				lastRole, _ := lastContent["role"].(string)
+				// If consecutive turns have the same role, merge their parts
+				if role == lastRole {
+					lastParts, _ := lastContent["parts"].([]any)
+					lastContent["parts"] = append(lastParts, parts...)
+					modified = true
+					continue
+				}
+			}
+		}
+
+		normalized = append(normalized, contentMap)
+	}
+
+	// Additional check: Ensure model turn with functionCall has a preceding user turn
+	// If the very first turn is a model turn with functionCall, prepend a placeholder user turn.
+	if len(normalized) > 0 {
+		firstContent, ok := normalized[0].(map[string]any)
+		if ok {
+			role, _ := firstContent["role"].(string)
+			if role == "model" {
+				hasFunctionCall := false
+				parts, _ := firstContent["parts"].([]any)
+				for _, p := range parts {
+					if pm, ok := p.(map[string]any); ok && pm["functionCall"] != nil {
+						hasFunctionCall = true
+						break
+					}
+				}
+				if hasFunctionCall {
+					placeholderUser := map[string]any{
+						"role": "user",
+						"parts": []any{
+							map[string]any{"text": "Proceed with function call."},
+						},
+					}
+					normalized = append([]any{placeholderUser}, normalized...)
+					modified = true
+				}
+			}
+		}
+	}
+
+	if !modified {
+		return body, nil
+	}
+
+	payload["contents"] = normalized
 	return json.Marshal(payload)
 }
