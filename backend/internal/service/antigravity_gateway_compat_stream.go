@@ -250,18 +250,15 @@ func isMeaningfulAntigravityCompatEvent(event *apicompat.AnthropicStreamEvent) b
 	if event.ContentBlock != nil {
 		block := event.ContentBlock
 		return block.Type == "tool_use" ||
-			block.Type == "thinking" ||
 			block.Text != "" ||
 			block.Thinking != "" ||
-			block.Signature != "" ||
 			block.Source != nil
 	}
 	if event.Delta != nil {
 		delta := event.Delta
 		return delta.Text != "" ||
 			delta.PartialJSON != "" ||
-			delta.Thinking != "" ||
-			delta.Signature != ""
+			delta.Thinking != ""
 	}
 	return false
 }

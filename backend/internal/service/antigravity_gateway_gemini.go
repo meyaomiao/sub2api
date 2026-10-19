@@ -594,7 +594,7 @@ func normalizeGeminiTurns(body []byte) ([]byte, error) {
 	}
 
 	contents, ok := payload["contents"].([]any)
-	if !ok || len(contents) <= 1 {
+	if !ok || len(contents) == 0 {
 		return body, nil
 	}
 
