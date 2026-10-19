@@ -279,6 +279,12 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 		if err != nil {
 			return nil, err
 		}
+		if filtered, filterErr := filterEmptyPartsFromGeminiRequest(body); filterErr == nil {
+			body = filtered
+		}
+		if normalized, normErr := normalizeGeminiTurns(body); normErr == nil {
+			body = normalized
+		}
 		if cleaned, cleanErr := cleanGeminiRequest(body); cleanErr == nil {
 			body = cleaned
 		}
