@@ -250,15 +250,18 @@ func isMeaningfulAntigravityCompatEvent(event *apicompat.AnthropicStreamEvent) b
 	if event.ContentBlock != nil {
 		block := event.ContentBlock
 		return block.Type == "tool_use" ||
+			block.Type == "thinking" ||
 			block.Text != "" ||
 			block.Thinking != "" ||
+			block.Signature != "" ||
 			block.Source != nil
 	}
 	if event.Delta != nil {
 		delta := event.Delta
 		return delta.Text != "" ||
 			delta.PartialJSON != "" ||
-			delta.Thinking != ""
+			delta.Thinking != "" ||
+			delta.Signature != ""
 	}
 	return false
 }
@@ -512,7 +515,7 @@ func antigravityCompatEmptyStreamError() error {
 	return &UpstreamFailoverError{
 		StatusCode:             http.StatusBadGateway,
 		ResponseBody:           []byte(`{"error":"empty stream response from upstream"}`),
-		RetryableOnSameAccount: true,
+		RetryableOnSameAccount: false,
 	}
 }
 

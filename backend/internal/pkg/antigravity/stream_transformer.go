@@ -250,8 +250,8 @@ func (p *StreamingProcessor) processPart(part *GeminiPart) []byte {
 	}
 
 	// 2. Text 处理
-	if part.Text != "" || part.Thought {
-		if part.Thought {
+	if part.Text != "" || part.Thought || signature != "" {
+		if part.Thought || (part.Text == "" && signature != "") {
 			_, _ = result.Write(p.processThinking(part.Text, signature))
 		} else {
 			_, _ = result.Write(p.processText(part.Text, signature))
@@ -311,6 +311,7 @@ func (p *StreamingProcessor) processThinking(text, signature string) []byte {
 
 	// 暂存签名
 	if signature != "" {
+		p.hasContent = true
 		p.pendingSignature = signature
 	}
 
@@ -324,6 +325,7 @@ func (p *StreamingProcessor) processText(text, signature string) []byte {
 	// 空 text 带签名 - 暂存
 	if text == "" {
 		if signature != "" {
+			p.hasContent = true
 			p.trailingSignature = signature
 		}
 		return nil
