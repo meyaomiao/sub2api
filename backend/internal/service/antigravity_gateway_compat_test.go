@@ -428,6 +428,36 @@ func TestAntigravityCompatPreservesChatTokenLimit(t *testing.T) {
 	}
 }
 
+func TestWriteMappedAntigravityCompatErrorPassesThroughBadRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newAntigravityCompatService(config.GatewayConfig{}, nil)
+	c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", nil)
+	account := newAntigravityCompatAccount(AccountTypeOAuth)
+
+	upstreamErrBody := []byte(`{"error":{"code":400,"message":"Request contains an invalid argument.","status":"INVALID_ARGUMENT"}}`)
+	err := svc.writeMappedAntigravityCompatError(c, account, http.StatusBadRequest, "req-123", upstreamErrBody)
+
+	require.Error(t, err)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Equal(t, "Request contains an invalid argument.", gjson.Get(recorder.Body.String(), "error.message").String())
+	require.Equal(t, "invalid_request_error", gjson.Get(recorder.Body.String(), "error.type").String())
+}
+
+func TestSanitizeGeminiGenerationConfigRemovesSamplingForReasoningModels(t *testing.T) {
+	input := []byte(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}],"generationConfig":{"maxOutputTokens":8192,"temperature":0.7,"topP":0.9,"stopSequences":["foo"]}}`)
+	out, err := sanitizeGeminiGenerationConfig(input, "gemini-3.8-flash-high")
+	require.NoError(t, err)
+	require.Equal(t, int64(8192), gjson.GetBytes(out, "generationConfig.maxOutputTokens").Int())
+	require.False(t, gjson.GetBytes(out, "generationConfig.temperature").Exists())
+	require.False(t, gjson.GetBytes(out, "generationConfig.topP").Exists())
+	require.False(t, gjson.GetBytes(out, "generationConfig.stopSequences").Exists())
+
+	// Non-reasoning model retains parameters
+	outNonReasoning, err := sanitizeGeminiGenerationConfig(input, "gemini-2.5-flash")
+	require.NoError(t, err)
+	require.Equal(t, 0.7, gjson.GetBytes(outNonReasoning, "generationConfig.temperature").Float())
+}
+
 func TestPreserveChatCompletionTokenLimitIgnoresAbsentAndNonPositiveValues(t *testing.T) {
 	tests := []struct {
 		name    string

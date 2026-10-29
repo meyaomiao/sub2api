@@ -291,6 +291,9 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 		if cleaned, cleanErr := cleanGeminiRequest(body); cleanErr == nil {
 			body = cleaned
 		}
+		if sanitized, sanitizeErr := sanitizeGeminiGenerationConfig(body, mappedModel); sanitizeErr == nil {
+			body = sanitized
+		}
 		return s.wrapV1InternalRequest(projectID, mappedModel, body)
 	}
 
@@ -556,10 +559,22 @@ func (s *AntigravityGatewayService) writeMappedAntigravityCompatError(
 		Kind:               "http_error",
 		Message:            message,
 	})
+
+	errType := "upstream_error"
+	clientMsg := message
+	if upstreamStatus == http.StatusBadRequest {
+		errType = "invalid_request_error"
+		if clientMsg == "" {
+			clientMsg = "Invalid request"
+		}
+	} else {
+		clientMsg = getPassthroughOrDefault(message, "Upstream request failed")
+	}
+
 	c.JSON(mapUpstreamStatusCode(upstreamStatus), gin.H{
 		"error": gin.H{
-			"message": getPassthroughOrDefault(message, "Upstream request failed"),
-			"type":    "upstream_error",
+			"message": clientMsg,
+			"type":    errType,
 			"param":   nil,
 			"code":    nil,
 		},

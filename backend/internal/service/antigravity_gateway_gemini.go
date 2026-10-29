@@ -151,6 +151,9 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 	if normalized, normErr := normalizeGeminiTurns(injectedBody); normErr == nil {
 		injectedBody = normalized
 	}
+	if sanitized, sanitizeErr := sanitizeGeminiGenerationConfig(injectedBody, mappedModel); sanitizeErr == nil {
+		injectedBody = sanitized
+	}
 
 	// 包装请求
 	wrappedBody, err := s.wrapV1InternalRequest(projectID, mappedModel, injectedBody)
@@ -671,3 +674,41 @@ func normalizeGeminiTurns(body []byte) ([]byte, error) {
 	payload["contents"] = normalized
 	return json.Marshal(payload)
 }
+
+// sanitizeGeminiGenerationConfig removes incompatible sampling parameters for Gemini reasoning models.
+func sanitizeGeminiGenerationConfig(body []byte, model string) ([]byte, error) {
+	if !antigravity.IsGeminiReasoningModel(model) {
+		return body, nil
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return body, nil
+	}
+
+	genCfg, ok := payload["generationConfig"].(map[string]any)
+	if !ok || len(genCfg) == 0 {
+		return body, nil
+	}
+
+	modified := false
+	for _, key := range []string{"temperature", "topP", "topK", "stopSequences"} {
+		if _, exists := genCfg[key]; exists {
+			delete(genCfg, key)
+			modified = true
+		}
+	}
+
+	if !modified {
+		return body, nil
+	}
+
+	if len(genCfg) == 0 {
+		delete(payload, "generationConfig")
+	} else {
+		payload["generationConfig"] = genCfg
+	}
+
+	return json.Marshal(payload)
+}
+
