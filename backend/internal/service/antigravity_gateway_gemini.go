@@ -712,4 +712,3 @@ func sanitizeGeminiGenerationConfig(body []byte, model string) ([]byte, error) {
 
 	return json.Marshal(payload)
 }
-

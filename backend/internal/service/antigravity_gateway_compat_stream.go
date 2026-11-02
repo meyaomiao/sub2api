@@ -510,8 +510,8 @@ func writeAntigravityCompatStreamError(
 func antigravityCompatEmptyStreamError(isMalformedFunctionCall bool) error {
 	logger.LegacyPrintf("service.antigravity_gateway", "Empty Antigravity compatibility stream (malformed_fc=%v), triggering failover", isMalformedFunctionCall)
 	return &UpstreamFailoverError{
-		StatusCode:             http.StatusBadGateway,
-		ResponseBody:           []byte(`{"error":"empty stream response from upstream"}`),
+		StatusCode:   http.StatusBadGateway,
+		ResponseBody: []byte(`{"error":"empty stream response from upstream"}`),
 		// 如果是上游返回的 MALFORMED_FUNCTION_CALL，说明是模型生成畸形问题，
 		// 严禁在同一账号毫秒级连击重试（避免瞬间打满并发触发 429），且标记为请求级瞬时问题（不惩罚下线账号）
 		RetryableOnSameAccount: !isMalformedFunctionCall,
