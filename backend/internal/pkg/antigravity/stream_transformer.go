@@ -36,11 +36,11 @@ type StreamingProcessor struct {
 	usageMapHook      UsageMapHook
 
 	// 累计 usage
-	inputTokens       int
-	outputTokens      int
-	cacheReadTokens   int
-	imageOutputTokens int
-	hasContent        bool
+	inputTokens           int
+	outputTokens          int
+	cacheReadTokens       int
+	imageOutputTokens     int
+	hasContent            bool
 	malformedFunctionCall bool
 }
 

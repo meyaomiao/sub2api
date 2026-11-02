@@ -479,6 +479,7 @@ handleSuccess:
 		Duration:                      time.Since(startTime),
 		FirstTokenMs:                  firstTokenMs,
 		ClientDisconnect:              clientDisconnect,
+		ImageEndpoint:                 imageCount > 0,
 		ImageCount:                    imageCount,
 		ImageSize:                     imageSize,
 		ImageInputSize:                imageInputSize,
@@ -711,4 +712,3 @@ func sanitizeGeminiGenerationConfig(body []byte, model string) ([]byte, error) {
 
 	return json.Marshal(payload)
 }
-
