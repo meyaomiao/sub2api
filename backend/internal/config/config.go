@@ -95,6 +95,7 @@ type Config struct {
 	Dashboard               DashboardCacheConfig          `mapstructure:"dashboard_cache"`
 	DashboardAgg            DashboardAggregationConfig    `mapstructure:"dashboard_aggregation"`
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
+	IPDevices               IPDevicesConfig               `mapstructure:"ip_devices"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
 	SimpleMode              SimpleModeConfig              `mapstructure:"simple_mode" yaml:"simple_mode"`
@@ -1797,6 +1798,14 @@ type DashboardAggregationRetentionConfig struct {
 	DailyDays             int `mapstructure:"daily_days"`
 }
 
+// IPDevicesConfig 将使用记录中的来源 IP 映射为设备名称（管理端展示与筛选用）。
+type IPDevicesConfig struct {
+	// TailscaleSocket: tailscaled LocalAPI unix socket 路径；为空或不可达时仅使用 Aliases。
+	TailscaleSocket string `mapstructure:"tailscale_socket"`
+	// Aliases: 手动别名，格式 "ip=名称,ip=名称"，优先级高于 Tailscale 设备名。
+	Aliases string `mapstructure:"aliases"`
+}
+
 // UsageCleanupConfig 使用记录清理任务配置
 type UsageCleanupConfig struct {
 	// Enabled: 是否启用清理任务执行器
@@ -2406,6 +2415,10 @@ func setDefaults() {
 	viper.SetDefault("dashboard_aggregation.retention.hourly_days", 180)
 	viper.SetDefault("dashboard_aggregation.retention.daily_days", 730)
 	viper.SetDefault("dashboard_aggregation.recompute_days", 2)
+
+	// IP -> device name mapping (env: IP_DEVICES_TAILSCALE_SOCKET / IP_DEVICES_ALIASES)
+	viper.SetDefault("ip_devices.tailscale_socket", "/var/run/tailscale/tailscaled.sock")
+	viper.SetDefault("ip_devices.aliases", "")
 
 	// Usage cleanup task
 	viper.SetDefault("usage_cleanup.enabled", true)

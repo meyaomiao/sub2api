@@ -174,6 +174,12 @@
           <Select v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
         </div>
 
+        <!-- Source Device Filter (IP -> Tailscale device name) -->
+        <div v-if="showDeviceFilter" class="w-full sm:w-auto sm:min-w-[200px]" data-testid="usage-device-filter">
+          <label class="input-label">{{ t('admin.usage.deviceFilter') }}</label>
+          <Select v-model="filters.ip_address" :options="deviceSelectOptions" searchable @change="emitChange" />
+        </div>
+
       </div>
 
       <!-- Right: actions -->
@@ -222,9 +228,14 @@ interface Props {
   mode?: 'all' | 'usage' | 'errors' | 'ranking'
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
+  /** 来源设备筛选项：value 为该设备全部 IP（逗号分隔） */
+  deviceOptions?: SelectOption[]
+  showDeviceFilter?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  deviceOptions: () => [],
+  showDeviceFilter: false,
   showActions: true,
   mode: 'usage',
   flat: false
@@ -268,6 +279,10 @@ let accountSearchTimeout: ReturnType<typeof setTimeout> | null = null
 const modelOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allModels') },
   ...(props.modelOptions ?? []).map((m) => ({ value: m, label: m })),
+])
+const deviceSelectOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('admin.usage.allDevices') },
+  ...props.deviceOptions,
 ])
 const groupOptions = ref<SelectOption[]>([{ value: null, label: t('admin.usage.allGroups') }])
 

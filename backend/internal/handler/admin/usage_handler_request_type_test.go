@@ -39,7 +39,7 @@ func (s *adminUsageRepoCapture) GetStatsWithFilters(ctx context.Context, filters
 func newAdminUsageRequestTypeTestRouter(repo *adminUsageRepoCapture) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	usageSvc := service.NewUsageService(repo, nil, nil, nil)
-	handler := NewUsageHandler(usageSvc, nil, nil, nil)
+	handler := NewUsageHandler(usageSvc, nil, nil, nil, nil)
 	router := gin.New()
 	router.GET("/admin/usage", handler.List)
 	router.GET("/admin/usage/stats", handler.Stats)
@@ -216,4 +216,44 @@ func TestAdminUsageStatsInvalidStream(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestAdminUsageListIPAddressFilter(t *testing.T) {
+	repo := &adminUsageRepoCapture{}
+	router := newAdminUsageRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/usage?ip_address=100.97.114.1,%20fd7a:115c:a1e0::5933:7202,", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, []string{"100.97.114.1", "fd7a:115c:a1e0::5933:7202"}, repo.listFilters.IPAddresses)
+}
+
+func TestAdminUsageStatsIPAddressFilter(t *testing.T) {
+	repo := &adminUsageRepoCapture{}
+	router := newAdminUsageRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/usage/stats?ip_address=100.82.215.120&nocache=1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, []string{"100.82.215.120"}, repo.statsFilters.IPAddresses)
+}
+
+func TestAdminUsageInvalidIPAddressFilter(t *testing.T) {
+	for _, path := range []string{
+		"/admin/usage?ip_address=100.97.114.1,not-an-ip",
+		"/admin/usage/stats?ip_address=1.2.3.4'--",
+	} {
+		repo := &adminUsageRepoCapture{}
+		router := newAdminUsageRequestTypeTestRouter(repo)
+
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusBadRequest, rec.Code, path)
+	}
 }

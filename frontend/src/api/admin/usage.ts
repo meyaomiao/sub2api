@@ -85,6 +85,8 @@ export interface AdminUsageQueryParams extends UsageQueryParams {
   exact_total?: boolean
   billing_mode?: string
   upstream_model_mismatch?: boolean
+  /** 来源 IP 筛选，逗号分隔（同一设备可能有 IPv4/IPv6 多个地址） */
+  ip_address?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'
   // 错误请求 tab 专属筛选(仅传给错误列表接口;共用同一 filters 对象)
@@ -126,6 +128,7 @@ export async function getStats(params: {
   stream?: boolean
   native_compaction_v2?: boolean | null
   upstream_model_mismatch?: boolean
+  ip_address?: string
   period?: string
   start_date?: string
   end_date?: string
@@ -207,9 +210,34 @@ export async function cancelCleanupTask(taskId: number): Promise<{ id: number; s
   return data
 }
 
+export interface IpDevice {
+  ip: string
+  name: string
+  host_name?: string
+  os?: string
+  online: boolean
+  self?: boolean
+  source: 'tailscale' | 'alias'
+}
+
+export interface IpDevicesResponse {
+  devices: IpDevice[]
+  tailscale_available: boolean
+  tailscale_error?: string
+}
+
+/**
+ * Get the IP -> device name mapping (Tailscale peers + configured aliases)
+ */
+export async function getIpDevices(): Promise<IpDevicesResponse> {
+  const { data } = await apiClient.get<IpDevicesResponse>('/admin/usage/ip-devices')
+  return data
+}
+
 export const adminUsageAPI = {
   list,
   getStats,
+  getIpDevices,
   searchUsers,
   searchApiKeys,
   listCleanupTasks,

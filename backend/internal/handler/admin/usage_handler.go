@@ -2,12 +2,16 @@ package admin
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ipdevice"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -25,6 +29,7 @@ type UsageHandler struct {
 	apiKeyService  *service.APIKeyService
 	adminService   service.AdminService
 	cleanupService *service.UsageCleanupService
+	ipDevices      *ipdevice.Resolver
 }
 
 // NewUsageHandler creates a new admin usage handler
@@ -33,13 +38,52 @@ func NewUsageHandler(
 	apiKeyService *service.APIKeyService,
 	adminService service.AdminService,
 	cleanupService *service.UsageCleanupService,
+	cfg *config.Config,
 ) *UsageHandler {
-	return &UsageHandler{
+	h := &UsageHandler{
 		usageService:   usageService,
 		apiKeyService:  apiKeyService,
 		adminService:   adminService,
 		cleanupService: cleanupService,
 	}
+	if cfg != nil {
+		h.ipDevices = ipdevice.NewResolver(cfg.IPDevices.TailscaleSocket, cfg.IPDevices.Aliases)
+	}
+	return h
+}
+
+// maxUsageIPFilterValues bounds the ip_address filter (one device usually has 1-2 IPs).
+const maxUsageIPFilterValues = 32
+
+// parseUsageIPAddressFilter parses the comma-separated ip_address query used to
+// filter usage logs by source device.
+func parseUsageIPAddressFilter(raw string) ([]string, error) {
+	var ips []string
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		ip := net.ParseIP(part)
+		if ip == nil {
+			return nil, fmt.Errorf("Invalid ip_address: %s", part)
+		}
+		ips = append(ips, ip.String())
+	}
+	if len(ips) > maxUsageIPFilterValues {
+		return nil, fmt.Errorf("Too many ip_address values (max %d)", maxUsageIPFilterValues)
+	}
+	return ips, nil
+}
+
+// IPDevices returns the IP -> device name mapping (tailscale peers + aliases).
+// GET /api/v1/admin/usage/ip-devices
+func (h *UsageHandler) IPDevices(c *gin.Context) {
+	if h.ipDevices == nil {
+		response.Success(c, ipdevice.Snapshot{Devices: []ipdevice.Device{}})
+		return
+	}
+	response.Success(c, h.ipDevices.Snapshot(c.Request.Context()))
 }
 
 // CreateUsageCleanupTaskRequest represents cleanup task creation request
@@ -112,6 +156,11 @@ func (h *UsageHandler) List(c *gin.Context) {
 	model := c.Query("model")
 	requestID := strings.TrimSpace(c.Query("request_id"))
 	billingMode := strings.TrimSpace(c.Query("billing_mode"))
+	ipAddresses, err := parseUsageIPAddressFilter(c.Query("ip_address"))
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 
 	var requestType *int16
 	var stream *bool
@@ -202,6 +251,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 		BillingType:           billingType,
 		BillingMode:           billingMode,
 		UpstreamModelMismatch: upstreamModelMismatch,
+		IPAddresses:           ipAddresses,
 		StartTime:             startTime,
 		EndTime:               endTime,
 		ExactTotal:            exactTotal,
@@ -259,6 +309,11 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 
 	model := c.Query("model")
 	billingMode := strings.TrimSpace(c.Query("billing_mode"))
+	ipAddresses, err := parseUsageIPAddressFilter(c.Query("ip_address"))
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 
 	var requestType *int16
 	var stream *bool
@@ -357,6 +412,7 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		BillingType:           billingType,
 		BillingMode:           billingMode,
 		UpstreamModelMismatch: upstreamModelMismatch,
+		IPAddresses:           ipAddresses,
 		StartTime:             &startTime,
 		EndTime:               &endTime,
 	}

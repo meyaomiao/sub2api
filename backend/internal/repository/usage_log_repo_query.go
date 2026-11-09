@@ -131,6 +131,7 @@ func (r *usageLogRepository) ListWithFilters(ctx context.Context, params paginat
 	if filters.UpstreamModelMismatch != nil {
 		conditions = append(conditions, upstreamModelMismatchCondition("upstream_model_mismatch", *filters.UpstreamModelMismatch))
 	}
+	conditions, args = appendUsageLogIPAddressWhereCondition(conditions, args, filters.IPAddresses)
 	if filters.StartTime != nil {
 		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", len(args)+1))
 		args = append(args, *filters.StartTime)
@@ -159,6 +160,18 @@ func (r *usageLogRepository) ListWithFilters(ctx context.Context, params paginat
 		return nil, nil, err
 	}
 	return logs, page, nil
+}
+
+func appendUsageLogIPAddressWhereCondition(conditions []string, args []any, ips []string) ([]string, []any) {
+	if len(ips) == 0 {
+		return conditions, args
+	}
+	placeholders := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)+1))
+		args = append(args, ip)
+	}
+	return append(conditions, "ip_address IN ("+strings.Join(placeholders, ", ")+")"), args
 }
 
 func upstreamModelMismatchCondition(column string, mismatch bool) string {

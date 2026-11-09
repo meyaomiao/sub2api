@@ -111,6 +111,7 @@ const DataTableStub = {
         <slot name="cell-cost" :row="row" />
         <slot name="cell-request_id" :row="row" />
         <slot name="cell-upstream_request_id" :row="row" />
+        <slot name="cell-ip_address" :row="row" />
       </div>
     </div>
   `,
@@ -157,6 +158,33 @@ describe('admin UsageTable tooltip', () => {
     })
     expect(wrapper.findAll('[data-testid="output-tps"]').map(cell => cell.text())).toEqual(['50.0 tok/s', '—', '—'])
     expect(wrapper.text()).toContain('Output TPS')
+  })
+
+  it('shows the tailscale device name for known IPs and falls back to raw IP otherwise', () => {
+    const row = { ...baseImageRow, billing_mode: 'token', image_count: 0 }
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [
+          { ...row, request_id: 'mac', ip_address: '100.97.114.1' },
+          { ...row, request_id: 'unknown', ip_address: '8.8.8.8' },
+        ],
+        loading: false,
+        columns: [{ key: 'ip_address', label: 'IP' }],
+        ipDevices: {
+          '100.97.114.1': { ip: '100.97.114.1', name: 'xzbmacbook-air', host_name: 'xzb MacBook Air', os: 'macOS', online: true, source: 'tailscale' },
+        },
+      },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true, IpGeoCell: true } },
+    })
+
+    const macCell = wrapper.find('[data-request-id="mac"] [data-testid="usage-ip-device"]')
+    expect(macCell.exists()).toBe(true)
+    expect(macCell.text()).toContain('xzbmacbook-air')
+    expect(macCell.text()).toContain('100.97.114.1')
+    expect(macCell.attributes('title')).toContain('macOS')
+    const unknownCell = wrapper.find('[data-request-id="unknown"]')
+    expect(unknownCell.find('[data-testid="usage-ip-device"]').exists()).toBe(false)
+    expect(unknownCell.text()).toContain('8.8.8.8')
   })
 
   beforeEach(() => {

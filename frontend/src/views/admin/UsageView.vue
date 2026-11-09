@@ -83,7 +83,7 @@
           </button>
         </div>
 
-        <UsageFilters v-model="filters" ref="usageFiltersRef" flat :mode="activeTab" class="border-b border-gray-100 dark:border-dark-700/50" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
+        <UsageFilters v-model="filters" ref="usageFiltersRef" flat :mode="activeTab" class="border-b border-gray-100 dark:border-dark-700/50" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" :device-options="deviceOptions" :show-device-filter="activeTab === 'usage'" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
           <template #after-reset>
             <div v-if="activeTab !== 'ranking'" class="relative" ref="columnDropdownRef">
               <button
@@ -128,6 +128,7 @@
             :data="usageLogs"
             :loading="loading"
             :columns="visibleColumns"
+            :ip-devices="ipDeviceMap"
             :server-side-sort="true"
             :default-sort-key="'created_at'"
             :default-sort-order="'desc'"
@@ -205,7 +206,8 @@ import type { OpsErrorLog } from '@/api/admin/ops'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
-import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin/usage'
+import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams, IpDevice } from '@/api/admin/usage'
+import type { SelectOption } from '@/components/common/Select.vue'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -250,6 +252,34 @@ const breakdownFilters = computed(() => {
   if (filters.value.billing_type != null) f.billing_type = filters.value.billing_type
   return f
 })
+
+// 来源 IP -> 设备名（Tailscale 组网设备 / 后端配置的别名）
+const ipDevices = ref<IpDevice[]>([])
+const ipDeviceMap = computed<Record<string, IpDevice>>(() =>
+  Object.fromEntries(ipDevices.value.map((d) => [d.ip, d]))
+)
+// 同名设备合并为一个筛选项（IPv4 + IPv6），value 为逗号分隔的全部 IP
+const deviceOptions = computed<SelectOption[]>(() => {
+  const grouped = new Map<string, { ips: string[]; online: boolean }>()
+  for (const d of ipDevices.value) {
+    const entry = grouped.get(d.name) ?? { ips: [], online: false }
+    entry.ips.push(d.ip)
+    entry.online = entry.online || d.online
+    grouped.set(d.name, entry)
+  }
+  return Array.from(grouped, ([name, { ips, online }]) => ({
+    value: ips.join(','),
+    label: online ? name : `${name} (${t('admin.usage.deviceOffline')})`,
+  }))
+})
+const loadIpDevices = async () => {
+  try {
+    const res = await adminUsageAPI.getIpDevices()
+    ipDevices.value = res.devices || []
+  } catch (error) {
+    console.error('Failed to load IP devices:', error)
+  }
+}
 
 const modelNameOptions = computed(() =>
   Array.from(new Set(requestedModelStats.value.map((m) => m.model).filter(Boolean))).sort()
@@ -532,6 +562,7 @@ const applyFilters = () => {
   }
 }
 const refreshData = () => {
+  void loadIpDevices()
   invalidateModelStatsCache()
   loadLogs()
   loadStats(true)
@@ -589,7 +620,7 @@ const exportToExcel = async () => {
       t('admin.usage.cacheReadCost'), t('admin.usage.cacheCreationCost'),
       t('usage.rate'), t('usage.accountMultiplier'), t('usage.original'), t('usage.userBilled'), t('usage.accountBilled'),
       t('usage.firstToken'), t('usage.duration'),
-      t('admin.usage.requestId'), t('admin.usage.upstreamRequestId'), t('usage.userAgent'), t('admin.usage.ipAddress')
+      t('admin.usage.requestId'), t('admin.usage.upstreamRequestId'), t('usage.userAgent'), t('admin.usage.deviceName'), 'IP'
     ]
     const ws = XLSX.utils.aoa_to_sheet([headers])
     while (true) {
@@ -608,7 +639,8 @@ const exportToExcel = async () => {
         log.rate_multiplier?.toPrecision(4) || '1.00', (log.account_rate_multiplier ?? 1).toPrecision(4),
         log.total_cost?.toFixed(6) || '0.000000', log.actual_cost?.toFixed(6) || '0.000000',
         ((log.account_stats_cost ?? log.total_cost) * (log.account_rate_multiplier ?? 1)).toFixed(6), log.first_token_ms ?? '', log.duration_ms,
-        log.request_id || '', log.upstream_request_id || '', log.user_agent || '', log.ip_address || ''
+        log.request_id || '', log.upstream_request_id || '', log.user_agent || '',
+        (log.ip_address && ipDeviceMap.value[log.ip_address]?.name) || '', log.ip_address || ''
       ])
       if (rows.length) {
         XLSX.utils.sheet_add_aoa(ws, rows, { origin: -1 })
@@ -868,6 +900,7 @@ const handleColumnClickOutside = (event: MouseEvent) => {
 onMounted(() => {
   applyRouteQueryFilters()
   void loadRouteUserFilterLabel()
+  void loadIpDevices()
   loadLogs()
   loadStats()
   loadModelStats(modelDistributionSource.value, true)

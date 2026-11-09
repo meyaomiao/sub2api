@@ -300,7 +300,17 @@
         </template>
 
         <template #cell-ip_address="{ row }">
-          <div v-if="row.ip_address">
+          <div v-if="row.ip_address && ipDevices[row.ip_address]" :title="ipDeviceTitle(ipDevices[row.ip_address])" data-testid="usage-ip-device">
+            <div class="flex items-center gap-1.5 text-sm font-medium text-gray-800 dark:text-gray-200">
+              <span
+                class="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+                :class="ipDevices[row.ip_address].online ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-dark-500'"
+              ></span>
+              <span class="max-w-[180px] truncate">{{ ipDevices[row.ip_address].name }}</span>
+            </div>
+            <span class="text-xs font-mono text-gray-400 dark:text-gray-500">{{ row.ip_address }}</span>
+          </div>
+          <div v-else-if="row.ip_address">
             <span class="text-sm font-mono text-gray-600 dark:text-gray-400">{{ row.ip_address }}</span>
             <IpGeoCell :ip="row.ip_address" />
           </div>
@@ -588,6 +598,7 @@ import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { fetchBatch, getEntry } from '@/utils/ipGeoLookup'
 import type { AdminUsageLog } from '@/types'
+import type { IpDevice } from '@/api/admin/usage'
 import type { Column } from '@/components/common/types'
 
 interface Props {
@@ -601,9 +612,12 @@ interface Props {
   showUpstreamEndpoint?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
+  /** 来源 IP -> 设备（Tailscale 设备名 / 手动别名） */
+  ipDevices?: Record<string, IpDevice>
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  ipDevices: () => ({}),
   loading: false,
   serverSideSort: false,
   defaultSortKey: '',
@@ -653,8 +667,16 @@ const modelAuditTitle = (row: AdminUsageLog): string => [
   `${t('usage.upstreamResponseModel')}: ${row.upstream_response_model || '-'}`,
 ].join('\n')
 
+const ipDeviceTitle = (device: IpDevice): string => [
+  device.name,
+  device.host_name && device.host_name !== device.name ? device.host_name : '',
+  [device.os, device.online ? '' : t('admin.usage.deviceOffline')].filter(Boolean).join(' · '),
+  device.ip,
+].filter(Boolean).join('\n')
+
+// 已识别为设备的 IP（Tailscale 内网 / 别名）无需地理位置查询
 const currentPageIps = computed(() =>
-  Array.from(new Set(props.data.map((row) => row.ip_address).filter((ip): ip is string => Boolean(ip))))
+  Array.from(new Set(props.data.map((row) => row.ip_address).filter((ip): ip is string => Boolean(ip) && !props.ipDevices[ip as string])))
 )
 
 const pendingIpCount = computed(() => {

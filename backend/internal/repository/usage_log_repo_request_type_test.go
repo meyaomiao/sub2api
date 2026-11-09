@@ -445,6 +445,23 @@ func TestUsageLogRepositoryListWithFiltersRequestID(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryListWithFiltersIPAddresses(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	filters := usagestats.UsageLogFilters{IPAddresses: []string{"100.97.114.1", "fd7a:115c:a1e0::5933:7202"}}
+
+	mock.ExpectQuery("SELECT .* FROM usage_logs WHERE ip_address IN \\(\\$1, \\$2\\) ORDER BY id DESC LIMIT \\$3 OFFSET \\$4").
+		WithArgs("100.97.114.1", "fd7a:115c:a1e0::5933:7202", 21, 0).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+
+	logs, page, err := repo.ListWithFilters(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 20}, filters)
+	require.NoError(t, err)
+	require.Empty(t, logs)
+	require.NotNil(t, page)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUsageLogRepositoryListWithFiltersRequestedModelSource(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &usageLogRepository{sql: db}
