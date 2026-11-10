@@ -1103,6 +1103,8 @@ export type OpsErrorListQueryParams = {
   account_id?: number | null
   user_id?: number
   api_key_id?: number
+  // 来源设备的 IPv4/IPv6 地址，逗号分隔，与使用明细筛选一致。
+  ip_address?: string
   // 模型过滤：后端以 COALESCE(requested_model, model) 精确匹配（admin 路径）。
   model?: string
 

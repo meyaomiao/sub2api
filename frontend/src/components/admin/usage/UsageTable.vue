@@ -300,21 +300,7 @@
         </template>
 
         <template #cell-ip_address="{ row }">
-          <div v-if="row.ip_address && ipDevices[row.ip_address]" :title="ipDeviceTitle(ipDevices[row.ip_address])" data-testid="usage-ip-device">
-            <div class="flex items-center gap-1.5 text-sm font-medium text-gray-800 dark:text-gray-200">
-              <span
-                class="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-                :class="ipDevices[row.ip_address].online ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-dark-500'"
-              ></span>
-              <span class="max-w-[180px] truncate">{{ ipDevices[row.ip_address].name }}</span>
-            </div>
-            <span class="text-xs font-mono text-gray-400 dark:text-gray-500">{{ row.ip_address }}</span>
-          </div>
-          <div v-else-if="row.ip_address">
-            <span class="text-sm font-mono text-gray-600 dark:text-gray-400">{{ row.ip_address }}</span>
-            <IpGeoCell :ip="row.ip_address" />
-          </div>
-          <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+          <SourceDeviceCell :ip="row.ip_address" :device="ipDevices[row.ip_address]" />
         </template>
 
         <template #empty><EmptyState :message="t('usage.noRecords')" /></template>
@@ -594,7 +580,7 @@ function accountBilled(row: { total_cost?: number | null; account_stats_cost?: n
 
 import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import IpGeoCell from '@/components/common/IpGeoCell.vue'
+import SourceDeviceCell from '@/components/common/SourceDeviceCell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { fetchBatch, getEntry } from '@/utils/ipGeoLookup'
 import type { AdminUsageLog } from '@/types'
@@ -666,13 +652,6 @@ const modelAuditTitle = (row: AdminUsageLog): string => [
   `${t('usage.sentUpstreamModel')}: ${sentUpstreamModel(row) || '-'}`,
   `${t('usage.upstreamResponseModel')}: ${row.upstream_response_model || '-'}`,
 ].join('\n')
-
-const ipDeviceTitle = (device: IpDevice): string => [
-  device.name,
-  device.host_name && device.host_name !== device.name ? device.host_name : '',
-  [device.os, device.online ? '' : t('admin.usage.deviceOffline')].filter(Boolean).join(' · '),
-  device.ip,
-].filter(Boolean).join('\n')
 
 // 已识别为设备的 IP（Tailscale 内网 / 别名）无需地理位置查询
 const currentPageIps = computed(() =>

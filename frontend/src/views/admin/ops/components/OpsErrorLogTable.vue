@@ -1,7 +1,7 @@
 <template>
   <div class="flex h-full min-h-0 flex-col">
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden" :class="flat ? '' : 'card'">
-      <IpGeoBatchToolbar :ips="rows.map((r) => r.client_ip)" @failed="emit('ipGeoBatchFailed')" />
+      <IpGeoBatchToolbar :ips="unresolvedIps" @failed="emit('ipGeoBatchFailed')" />
 
       <DataTable
         :columns="columns"
@@ -142,11 +142,7 @@
 
         <template #cell-client_ip="{ row }">
           <div @click.stop>
-            <div v-if="row.client_ip">
-              <span class="text-sm font-mono text-gray-600 dark:text-gray-400">{{ row.client_ip }}</span>
-              <IpGeoCell :ip="row.client_ip" />
-            </div>
-            <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+            <SourceDeviceCell :ip="row.client_ip" :device="ipDevices[row.client_ip]" />
           </div>
         </template>
 
@@ -184,7 +180,8 @@ import { useI18n } from 'vue-i18n'
 import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Pagination from '@/components/common/Pagination.vue'
-import IpGeoCell from '@/components/common/IpGeoCell.vue'
+import SourceDeviceCell from '@/components/common/SourceDeviceCell.vue'
+import type { IpDevice } from '@/api/admin/usage'
 import IpGeoBatchToolbar from '@/components/common/IpGeoBatchToolbar.vue'
 import type { OpsErrorLog } from '@/api/admin/ops'
 import type { Column } from '@/components/common/types'
@@ -210,7 +207,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'message', label: t('admin.ops.errorLog.message') },
   { key: 'created_at', label: t('admin.ops.errorLog.time'), sortable: true },
   { key: 'user_agent', label: t('usage.userAgent') },
-  { key: 'client_ip', label: t('admin.ops.errorLog.ip') },
+  { key: 'client_ip', label: t('admin.usage.ipAddress') },
   { key: 'actions', label: t('admin.ops.errorLog.action') },
 ])
 
@@ -299,6 +296,7 @@ interface Props {
   summaryFirst?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
+  ipDevices?: Record<string, IpDevice>
 }
 
 interface Emits {
@@ -310,8 +308,11 @@ interface Emits {
   (e: 'userClick', userId: number, email?: string): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { ipDevices: () => ({}) })
 const emit = defineEmits<Emits>()
+const unresolvedIps = computed(() =>
+  props.rows.map((row) => row.client_ip).filter((ip): ip is string => !!ip && !props.ipDevices[ip])
+)
 
 function onSort(key: string, order: 'asc' | 'desc') {
   emit('sort', mapErrorSortKey(key), order)

@@ -4,7 +4,7 @@ import { defineComponent, ref } from 'vue'
 
 import UsageView from '../UsageView.vue'
 
-const { list, exportList, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs, routeQuery, aoaToSheet, sheetAddAoa, saveAs, xlsxWrite } = vi.hoisted(() => {
+const { list, exportList, getIpDevices, getStats, getSnapshotV2, getById, getModelStats, listErrorLogs, routeQuery, aoaToSheet, sheetAddAoa, saveAs, xlsxWrite } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -13,6 +13,7 @@ const { list, exportList, getStats, getSnapshotV2, getById, getModelStats, listE
 
   return {
     list: vi.fn(),
+    getIpDevices: vi.fn().mockResolvedValue({ devices: [], tailscale_available: true }),
 		exportList: vi.fn(),
     getStats: vi.fn(),
     getSnapshotV2: vi.fn(),
@@ -68,6 +69,7 @@ vi.mock('@/api/admin', () => ({
 vi.mock('@/api/admin/usage', () => ({
   adminUsageAPI: {
 		list: exportList,
+    getIpDevices,
   },
 }))
 
@@ -118,6 +120,8 @@ vi.mock('vue-router', () => ({
 
 const AppLayoutStub = { template: '<div><slot /></div>' }
 const UsageFiltersStub = defineComponent({
+  props: ['modelValue', 'deviceOptions', 'showDeviceFilter'],
+  emits: ['change', 'reset', 'refresh'],
   setup(_, { expose }) {
     const userKeyword = ref('')
     let userSearchRevision = 0
@@ -172,6 +176,7 @@ const mountRouteFilteredUsageView = () => mount(UsageView, {
     DateRangePicker: true, Icon: true, TokenUsageTrend: true,
     ModelDistributionChart: true, GroupDistributionChart: true,
     EndpointDistributionChart: true, UserTokenRanking: true,
+    OpsErrorLogTable: true, OpsErrorDetailModal: true,
   } },
 })
 
@@ -733,6 +738,92 @@ describe('admin UsageView ranking tab', () => {
     expect((wrapper.vm as any).activeTab).toBe('usage')
     expect((wrapper.vm as any).filters.user_id).toBe(5)
     expect(list).toHaveBeenCalledWith(expect.objectContaining({ user_id: 5 }), expect.anything())
+  })
+})
+
+describe('admin UsageView source device across log tabs', () => {
+  const device = { ip: '100.97.114.1', name: 'macbook', online: true, source: 'tailscale' }
+  const deviceIPs = '100.97.114.1,fd7a:115c:a1e0::5933:7202'
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    list.mockReset().mockResolvedValue({ items: [], total: 0, pages: 0 })
+    listErrorLogs.mockReset().mockResolvedValue({ items: [], total: 0 })
+    getStats.mockReset().mockResolvedValue({ total_requests: 0 })
+    getSnapshotV2.mockReset().mockResolvedValue({ trend: [], groups: [] })
+    getModelStats.mockReset().mockResolvedValue({ models: [] })
+    getIpDevices.mockResolvedValue({
+      devices: [device, { ...device, ip: 'fd7a:115c:a1e0::5933:7202' }],
+      tailscale_available: true,
+    })
+  })
+
+  afterEach(() => {
+    getIpDevices.mockResolvedValue({ devices: [], tailscale_available: true })
+    vi.useRealTimers()
+  })
+
+  it('preserves device selection across tabs, pagination, sorting and refresh, and clears it on reset', async () => {
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    const filter = wrapper.findComponent(UsageFiltersStub)
+    expect(filter.props('showDeviceFilter')).toBe(true)
+    expect(filter.props('deviceOptions')).toEqual([{ value: deviceIPs, label: 'macbook' }])
+    filter.props('modelValue').ip_address = deviceIPs
+    filter.vm.$emit('change')
+    await flushPromises()
+    expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ ip_address: deviceIPs }), expect.anything())
+
+    const tabs = wrapper.findAll('[data-testid="usage-detail-tab"]')
+    await tabs[1].trigger('click')
+    await flushPromises()
+    expect(filter.props('showDeviceFilter')).toBe(true)
+    expect(filter.props('modelValue').ip_address).toBe(deviceIPs)
+    expect(listErrorLogs).toHaveBeenLastCalledWith(expect.objectContaining({ ip_address: deviceIPs, page: 1 }))
+    const errorTable = wrapper.findComponent({ name: 'OpsErrorLogTable' })
+    expect(errorTable.props('ipDevices')['100.97.114.1']).toEqual(device)
+
+    errorTable.vm.$emit('update:page', 2)
+    await flushPromises()
+    expect(listErrorLogs).toHaveBeenLastCalledWith(expect.objectContaining({ ip_address: deviceIPs, page: 2 }))
+    errorTable.vm.$emit('sort', 'status_code', 'asc')
+    await flushPromises()
+    expect(listErrorLogs).toHaveBeenLastCalledWith(expect.objectContaining({ ip_address: deviceIPs, page: 1, sort_by: 'status_code' }))
+    filter.vm.$emit('refresh')
+    await flushPromises()
+    expect(listErrorLogs).toHaveBeenLastCalledWith(expect.objectContaining({ ip_address: deviceIPs }))
+
+    await tabs[0].trigger('click')
+    await flushPromises()
+    expect(filter.props('modelValue').ip_address).toBe(deviceIPs)
+    await tabs[1].trigger('click')
+    filter.vm.$emit('reset')
+    await flushPromises()
+    expect(filter.props('modelValue').ip_address).toBeUndefined()
+    expect(listErrorLogs).toHaveBeenLastCalledWith(expect.objectContaining({ ip_address: undefined, page: 1 }))
+    wrapper.unmount()
+  })
+
+  it('ignores an older error response after changing devices', async () => {
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    const filter = wrapper.findComponent(UsageFiltersStub)
+    filter.props('modelValue').ip_address = deviceIPs
+    let resolveOld!: (value: unknown) => void
+    listErrorLogs.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve }))
+    await wrapper.findAll('[data-testid="usage-detail-tab"]')[1].trigger('click')
+    const currentRows = [{ id: 2, client_ip: '100.82.215.120' }]
+    listErrorLogs.mockResolvedValueOnce({ items: currentRows, total: 1 })
+    filter.props('modelValue').ip_address = '100.82.215.120'
+    filter.vm.$emit('change')
+    await flushPromises()
+    resolveOld({ items: [{ id: 1, client_ip: '100.97.114.1' }], total: 99 })
+    await flushPromises()
+    const table = wrapper.findComponent({ name: 'OpsErrorLogTable' })
+    expect(table.props('rows')).toEqual(currentRows)
+    expect(table.props('total')).toBe(1)
+    expect(table.props('loading')).toBe(false)
+    wrapper.unmount()
   })
 })
 

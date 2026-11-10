@@ -83,7 +83,7 @@
           </button>
         </div>
 
-        <UsageFilters v-model="filters" ref="usageFiltersRef" flat :mode="activeTab" class="border-b border-gray-100 dark:border-dark-700/50" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" :device-options="deviceOptions" :show-device-filter="activeTab === 'usage'" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
+        <UsageFilters v-model="filters" ref="usageFiltersRef" flat :mode="activeTab" class="border-b border-gray-100 dark:border-dark-700/50" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" :device-options="deviceOptions" :show-device-filter="activeTab !== 'ranking'" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
           <template #after-reset>
             <div v-if="activeTab !== 'ranking'" class="relative" ref="columnDropdownRef">
               <button
@@ -144,6 +144,7 @@
             :rows="errRows" :total="errTotal" :loading="errLoading"
             :page="errPage" :page-size="errPageSize"
             :visible-column-keys="errVisibleColumnKeys"
+            :ip-devices="ipDeviceMap"
             user-clickable
             @userClick="handleUserClick"
             @openErrorDetail="openError"
@@ -558,7 +559,10 @@ const applyFilters = () => {
   if (activeTab.value === 'errors') {
     loadAdminErrors()
   } else {
+    errReqSeq += 1
+    errLoading.value = false
     errRows.value = []
+    errTotal.value = 0
   }
 }
 const refreshData = () => {
@@ -737,7 +741,7 @@ const errAllColumns = computed(() => [
   { key: 'message', label: t('admin.ops.errorLog.message') },
   { key: 'created_at', label: t('admin.ops.errorLog.time') },
   { key: 'user_agent', label: t('usage.userAgent') },
-  { key: 'client_ip', label: t('admin.ops.errorLog.ip') },
+  { key: 'client_ip', label: t('admin.usage.ipAddress') },
   { key: 'actions', label: t('admin.ops.errorLog.action') },
 ])
 
@@ -836,6 +840,7 @@ const switchTab = (tab: DetailTab) => {
 // Error tab state
 const errRows = ref<OpsErrorLog[]>([])
 const errLoading = ref(false)
+let errReqSeq = 0
 const errPage = ref(1)
 const errPageSize = ref(20)
 const errTotal = ref(0)
@@ -849,6 +854,7 @@ const toRFC3339 = (d: string | undefined, endOfDay = false): string | undefined 
   d ? new Date(d + (endOfDay ? 'T23:59:59.999' : 'T00:00:00')).toISOString() : undefined
 
 const loadAdminErrors = async () => {
+  const seq = ++errReqSeq
   errLoading.value = true
   try {
     const resp = await listErrorLogs({
@@ -862,19 +868,22 @@ const loadAdminErrors = async () => {
       account_id: filters.value.account_id ?? undefined,
       group_id: filters.value.group_id ?? undefined,
       model: filters.value.model || undefined,
+      ip_address: filters.value.ip_address || undefined,
       phase: filters.value.error_phase || undefined,
       category: filters.value.error_category || undefined,
       status_codes: filters.value.status_code != null ? String(filters.value.status_code) : undefined,
       sort_by: errSortBy.value,
       sort_order: errSortOrder.value,
     })
+    if (seq !== errReqSeq) return
     errRows.value = resp.items
     errTotal.value = resp.total
   } catch (error) {
+    if (seq !== errReqSeq) return
     console.error('Failed to load admin errors:', error)
     appStore.showError(t('usage.errors.failedToLoad'))
   } finally {
-    errLoading.value = false
+    if (seq === errReqSeq) errLoading.value = false
   }
 }
 

@@ -75,6 +75,36 @@ describe('OpsErrorLogTable user/api-key/account columns', () => {
   })
 })
 
+describe('OpsErrorLogTable source devices', () => {
+  it('shows the device and original IP, including offline devices and aliases', async () => {
+    const wrapper = mountTable({ client_ip: '100.97.114.1' })
+    await wrapper.setProps({ ipDevices: {
+      '100.97.114.1': { ip: '100.97.114.1', name: 'macbook', os: 'macOS', online: false, source: 'tailscale' },
+      '172.18.0.1': { ip: '172.18.0.1', name: '家宽1 本机', online: false, source: 'alias' },
+    } })
+    const cell = wrapper.find('[data-testid="usage-ip-device"]')
+    expect(cell.text()).toContain('macbook')
+    expect(cell.text()).toContain('100.97.114.1')
+    expect(cell.attributes('title')).toContain('admin.usage.deviceOffline')
+    expect(wrapper.findComponent({ name: 'IpGeoBatchToolbar' }).props('ips')).toEqual([])
+    await cell.trigger('click')
+    expect(wrapper.emitted('openErrorDetail')).toBeUndefined()
+
+    await wrapper.setProps({ rows: [{ ...wrapper.props('rows')[0], client_ip: '172.18.0.1' }] })
+    expect(wrapper.find('[data-testid="usage-ip-device"]').text()).toContain('家宽1 本机')
+    expect(wrapper.findAll('thead th').map((header) => header.text())).toContain('admin.usage.ipAddress')
+    wrapper.unmount()
+  })
+
+  it('falls back to the original IP when no device mapping is available', () => {
+    const wrapper = mountTable({ client_ip: '100.97.114.1' })
+    expect(wrapper.text()).toContain('100.97.114.1')
+    expect(wrapper.find('[data-testid="usage-ip-device"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'IpGeoBatchToolbar' }).props('ips')).toEqual(['100.97.114.1'])
+    wrapper.unmount()
+  })
+})
+
 describe('OpsErrorLogTable column order', () => {
   it('puts time and response content first for ops without changing time sorting', async () => {
     const wrapper = mountTable({})

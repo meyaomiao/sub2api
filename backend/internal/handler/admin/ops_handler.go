@@ -103,7 +103,12 @@ func (h *OpsHandler) GetErrorLogs(c *gin.Context) {
 		return
 	}
 
-	filter := &service.OpsErrorLogFilter{Page: page, PageSize: pageSize}
+	ipAddresses, err := parseUsageIPAddressFilter(c.Query("ip_address"))
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	filter := &service.OpsErrorLogFilter{Page: page, PageSize: pageSize, IPAddresses: ipAddresses}
 
 	if !startTime.IsZero() {
 		filter.StartTime = &startTime

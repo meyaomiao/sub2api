@@ -127,6 +127,9 @@ type OpsErrorLogFilter struct {
 	UserID   *int64
 	APIKeyID *int64
 
+	// IPAddresses matches any of the validated source-device IP addresses.
+	IPAddresses []string
+
 	// Model matches against requested_model first, then model.
 	Model string
 	// ModelFuzzy 为 true 时 Model 走 ILIKE 模糊匹配（仅用户端启用）；false（默认）保持精确 =，管理端语义不变。
