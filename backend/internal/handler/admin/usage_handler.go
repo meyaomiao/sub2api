@@ -66,12 +66,12 @@ func parseUsageIPAddressFilter(raw string) ([]string, error) {
 		}
 		ip := net.ParseIP(part)
 		if ip == nil {
-			return nil, fmt.Errorf("Invalid ip_address: %s", part)
+			return nil, fmt.Errorf("invalid ip_address: %s", part)
 		}
 		ips = append(ips, ip.String())
 	}
 	if len(ips) > maxUsageIPFilterValues {
-		return nil, fmt.Errorf("Too many ip_address values (max %d)", maxUsageIPFilterValues)
+		return nil, fmt.Errorf("too many ip_address values (max %d)", maxUsageIPFilterValues)
 	}
 	return ips, nil
 }
