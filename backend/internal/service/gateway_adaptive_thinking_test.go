@@ -363,7 +363,17 @@ func TestGatewayServiceAdaptiveThinkingOAuth(t *testing.T) {
 			require.False(t, gjson.GetBytes(upstream.lastBody, "thinking.budget_tokens").Exists())
 			require.Equal(t, "medium", gjson.GetBytes(upstream.lastBody, "output_config.effort").String())
 			require.Equal(t, "medium", parsed.OutputEffort)
-			require.Equal(t, "signed-history", gjson.GetBytes(upstream.lastBody, "messages.1.content.0.signature").String())
+			// OAuth may prepend system instruction turns; locate history by block
+			// type instead of assuming its original message index survives.
+			var signatures []string
+			for _, message := range gjson.GetBytes(upstream.lastBody, "messages").Array() {
+				for _, block := range message.Get("content").Array() {
+					if block.Get("type").String() == "thinking" {
+						signatures = append(signatures, block.Get("signature").String())
+					}
+				}
+			}
+			require.Equal(t, []string{"signed-history"}, signatures)
 		})
 	}
 }
