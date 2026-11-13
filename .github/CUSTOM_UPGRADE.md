@@ -28,6 +28,12 @@
 
 `latest` 是本仓库的发布标签，不代表官方版本号。此前定制构建没有传入 `VERSION` 和 `COMMIT`，导致已经合入 v0.2.18 的程序仍显示兜底值 0.2.17，提交显示为 `docker`。现在界面显示已验证的官方基线版本，镜像标签和程序 `--version` 输出保留定制构建的具体提交。
 
+## Claude 5.5 旧客户端兼容
+
+保留 `ParsedRequest.normalizeClaudeAdaptiveThinking` 及其在 `Forward`、`ForwardCountTokens` 校验前的调用。它依据映射后的上游模型，将 Opus/Sonnet/Haiku 5.5 的旧 `thinking.type=enabled` 转为 `adaptive`，移除 `budget_tokens`；保留客户端显式 effort，缺省时使用 `high`。已有 adaptive 请求仅清理遗留 budget，省略 thinking 的请求保持原样。
+
+升级后运行 `go test -tags=unit ./internal/service -run 'TestParsedRequestNormalizeClaudeAdaptiveThinking|TestGatewayServiceAdaptiveThinking|TestOpus55|TestSonnet55'`，并使用旧 enabled 请求验证 OAuth、API Key 及 token 计数入口。兼容转换必须先于 `validateClaude55Request`，仅放在 API Key 透传构建函数中既覆盖不到 OAuth，也晚于校验。继续保留不支持的 disabled、强制工具选择等参数的校验。
+
 ## 独立的客户端隐私过滤
 
 DSH 的本机请求过滤服务属于独立部署层，不包含在本镜像中。升级应用镜像时继续保留现有过滤入口，不应把切换服务端版本当成客户端自动环境信息过滤的替代方案。
