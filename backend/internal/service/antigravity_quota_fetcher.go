@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -86,11 +87,12 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 	// 转换为 UsageInfo
 	usageInfo := f.buildUsageInfo(modelsResp, tierRaw, tierNormalized, loadResp)
 
-	// 调用 retrieveUserQuotaSummary 获取真实分组额度（Gemini 5h/weekly，3P 5h/weekly）
-	if summaryResp, err := client.RetrieveUserQuotaSummary(ctx, accessToken, projectID, resolveModelsListReadLimit(f.cfg)); err == nil && summaryResp != nil {
-		f.applyQuotaSummary(usageInfo, summaryResp)
-	} else if err != nil {
-		slog.Debug("retrieveUserQuotaSummary fallback or failed", "error", err)
+	// Fetch the per-group windows once for both the custom quota cards and upstream groups.
+	// Without a summary, the per-model figures above remain available.
+	if summary, err := client.RetrieveUserQuotaSummary(ctx, accessToken, projectID, resolveModelsListReadLimit(f.cfg)); err != nil {
+		slog.Warn("failed to fetch antigravity quota summary", "account_id", account.ID, "error", err)
+	} else {
+		f.applyQuotaSummary(usageInfo, summary)
 	}
 
 	return &QuotaResult{
@@ -223,12 +225,13 @@ func parseResetTime(raw string) *time.Time {
 	return nil
 }
 
-// applyQuotaSummary 解析 retrieveUserQuotaSummary 的分组配额桶并应用到 UsageInfo
-func (f *AntigravityQuotaFetcher) applyQuotaSummary(info *UsageInfo, summary *antigravity.RetrieveUserQuotaSummaryResponse) {
+// applyQuotaSummary 将同一份分组配额同时应用到官方分组和定制卡片字段。
+func (f *AntigravityQuotaFetcher) applyQuotaSummary(info *UsageInfo, summary *antigravity.QuotaSummaryResponse) {
 	if info == nil || summary == nil {
 		return
 	}
 
+	info.AntigravityQuotaGroups = buildAntigravityQuotaGroups(summary)
 	for _, group := range summary.Groups {
 		name := strings.ToLower(group.DisplayName)
 		isGemini := strings.Contains(name, "gemini")
@@ -270,6 +273,53 @@ func (f *AntigravityQuotaFetcher) applyQuotaSummary(info *UsageInfo, summary *an
 			}
 		}
 	}
+}
+
+// buildAntigravityQuotaGroups turns a quota summary into display groups, each with its
+// windows ordered 5h then weekly. Returns nil when there is nothing to show.
+func buildAntigravityQuotaGroups(summary *antigravity.QuotaSummaryResponse) []*AntigravityQuotaGroup {
+	if summary == nil {
+		return nil
+	}
+	windowOrder := map[string]int{"5h": 0, "weekly": 1}
+	var groups []*AntigravityQuotaGroup
+	for _, group := range summary.Groups {
+		if len(group.Buckets) == 0 {
+			continue
+		}
+		out := &AntigravityQuotaGroup{Name: group.DisplayName, Description: group.Description}
+		for _, bucket := range group.Buckets {
+			if out.Key == "" {
+				if i := strings.LastIndex(bucket.BucketID, "-"); i > 0 {
+					out.Key = bucket.BucketID[:i]
+				}
+			}
+			used := (1.0 - bucket.RemainingFraction) * 100
+			if used < 0 {
+				used = 0
+			}
+			window := &AntigravityQuotaWindow{Window: bucket.Window, Utilization: used}
+			if bucket.ResetTime != "" {
+				if resetAt, err := time.Parse(time.RFC3339, bucket.ResetTime); err == nil {
+					window.ResetsAt = &resetAt
+				}
+			}
+			out.Windows = append(out.Windows, window)
+		}
+		sort.SliceStable(out.Windows, func(i, j int) bool {
+			oi, iok := windowOrder[out.Windows[i].Window]
+			oj, jok := windowOrder[out.Windows[j].Window]
+			if !iok {
+				oi = len(windowOrder)
+			}
+			if !jok {
+				oj = len(windowOrder)
+			}
+			return oi < oj
+		})
+		groups = append(groups, out)
+	}
+	return groups
 }
 
 // GetProxyURL 获取账户的代理 URL

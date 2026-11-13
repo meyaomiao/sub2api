@@ -9,6 +9,11 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/account/__tests__/OpenAIReferralCell.spec.ts \
 	src/components/account/__tests__/OpenAIReferralCell.transport.spec.ts \
 	src/components/account/__tests__/OpenAIQuotaResetCell.spark_shadow.spec.ts \
+	src/components/account/__tests__/AccountUsageCell.spec.ts \
+	src/views/admin/__tests__/AccountsView.lite.spec.ts \
+	src/views/admin/__tests__/UsageView.spec.ts \
+	src/components/admin/usage/__tests__/UsageTable.spec.ts \
+	src/views/admin/ops/components/__tests__/OpsErrorLogTable.spec.ts \
 	src/constants/__tests__/platforms.spec.ts \
 	src/components/account/__tests__/credentialsBuilder.platformCatalog.spec.ts \
 	src/components/account/__tests__/CreateAccountModal.spec.ts \

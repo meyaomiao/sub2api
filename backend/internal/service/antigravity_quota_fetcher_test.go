@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -393,6 +394,73 @@ func TestBuildUsageInfo_AICredits(t *testing.T) {
 	require.Equal(t, "GOOGLE_ONE_AI", info.AICredits[0].CreditType)
 	require.Equal(t, 25.0, info.AICredits[0].Amount)
 	require.Equal(t, 5.0, info.AICredits[0].MinimumBalance)
+}
+
+func TestApplyQuotaSummary_PreservesCustomAndUpstreamFields(t *testing.T) {
+	fetcher := &AntigravityQuotaFetcher{}
+	summary := quotaSummaryFixture()
+	summary.Groups[0].Buckets[0].ResetTime = "2000-01-01T00:00:00Z"
+	summary.Groups[0].Buckets[1].ResetTime = "2000-01-01T01:00:00Z"
+	info := &UsageInfo{FiveHour: &UsageProgress{Utilization: 99}}
+
+	fetcher.applyQuotaSummary(info, summary)
+
+	require.NotNil(t, info.Gemini5h)
+	require.NotNil(t, info.GeminiWeekly)
+	require.NotNil(t, info.FiveHour)
+	require.NotNil(t, info.SevenDay)
+	require.InDelta(t, 60.0, info.Gemini5h.Utilization, 0.001)
+	require.InDelta(t, 25.0, info.GeminiWeekly.Utilization, 0.001)
+	require.Zero(t, info.FiveHour.Utilization, "the 3P summary replaces the model fallback")
+	require.Zero(t, info.SevenDay.Utilization, "a fraction above one does not produce negative usage")
+	require.NotNil(t, info.Gemini5h.ResetsAt)
+	require.NotNil(t, info.GeminiWeekly.ResetsAt)
+	require.Equal(t, "2000-01-01T01:00:00Z", info.Gemini5h.ResetsAt.UTC().Format(time.RFC3339))
+	require.Zero(t, info.Gemini5h.RemainingSeconds)
+	require.Zero(t, info.GeminiWeekly.RemainingSeconds)
+	require.Nil(t, info.FiveHour.ResetsAt)
+	require.Nil(t, info.SevenDay.ResetsAt)
+	require.Len(t, info.AntigravityQuotaGroups, 2)
+	require.Equal(t, "5h", info.AntigravityQuotaGroups[0].Windows[0].Window)
+	require.InDelta(t, info.Gemini5h.Utilization, info.AntigravityQuotaGroups[0].Windows[0].Utilization, 0.001)
+
+	raw, err := json.Marshal(info)
+	require.NoError(t, err)
+	var decoded map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	for _, key := range []string{"gemini_5h", "gemini_weekly", "five_hour", "seven_day", "antigravity_quota_groups"} {
+		require.Contains(t, decoded, key)
+	}
+}
+
+func TestApplyQuotaSummary_MissingSummaryKeepsModelFallback(t *testing.T) {
+	fetcher := &AntigravityQuotaFetcher{}
+	for _, summary := range []*antigravity.QuotaSummaryResponse{nil, {}} {
+		fallback := &UsageProgress{Utilization: 42}
+		info := &UsageInfo{FiveHour: fallback}
+		fetcher.applyQuotaSummary(info, summary)
+		require.Same(t, fallback, info.FiveHour)
+		require.Nil(t, info.Gemini5h)
+		require.Nil(t, info.GeminiWeekly)
+		require.Nil(t, info.SevenDay)
+		require.Nil(t, info.AntigravityQuotaGroups)
+	}
+}
+
+func TestApplyQuotaSummary_CustomBucketIDFallback(t *testing.T) {
+	fetcher := &AntigravityQuotaFetcher{}
+	info := &UsageInfo{}
+	summary := &antigravity.QuotaSummaryResponse{Groups: []antigravity.QuotaSummaryGroup{
+		{DisplayName: "Gemini Models", Buckets: []antigravity.QuotaSummaryBucket{
+			{BucketID: "gemini-5h", RemainingFraction: 0.5},
+			{BucketID: "gemini-weekly", RemainingFraction: 0.25},
+		}},
+	}}
+	fetcher.applyQuotaSummary(info, summary)
+	require.NotNil(t, info.Gemini5h)
+	require.NotNil(t, info.GeminiWeekly)
+	require.InDelta(t, 50.0, info.Gemini5h.Utilization, 0.001)
+	require.InDelta(t, 75.0, info.GeminiWeekly.Utilization, 0.001)
 }
 
 func TestFetchQuotaUsesConfiguredModelsListBodyLimit(t *testing.T) {
