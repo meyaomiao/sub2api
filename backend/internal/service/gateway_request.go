@@ -642,8 +642,51 @@ func isClaude55SignedThinkingModel(model string) bool {
 	return claude.IsOpus55(model) || claude.IsSonnet55(model) || claude.IsHaiku55(model) || claude.IsFable52(model) || claude.IsMythos52(model)
 }
 
+// normalizeClaudeAdaptiveThinking adapts legacy manual thinking before validation
+// for Claude 5.5. The resolved upstream model controls compatibility so account
+// aliases work too. Explicit effort, output formats and signed history survive.
+func (p *ParsedRequest) normalizeClaudeAdaptiveThinking(model string) error {
+	if !claude.IsOpus55(model) && !claude.IsSonnet55(model) && !claude.IsHaiku55(model) {
+		return nil
+	}
+	body := p.Body.Bytes()
+	thinking := gjson.GetBytes(body, "thinking")
+	if !thinking.IsObject() {
+		return nil
+	}
+	thinkingType := thinking.Get("type").String()
+	if thinkingType != "enabled" && thinkingType != "adaptive" {
+		return nil
+	}
+	if thinkingType == "adaptive" && !thinking.Get("budget_tokens").Exists() {
+		return nil
+	}
+
+	var err error
+	if thinkingType == "enabled" {
+		body, err = sjson.SetBytes(body, "thinking.type", "adaptive")
+		if err != nil {
+			return fmt.Errorf("normalize Claude thinking: %w", err)
+		}
+		// Legacy clients requested thinking explicitly. Use high effort when
+		// they provided only a token budget; never replace an explicit effort.
+		if !gjson.GetBytes(body, "output_config.effort").Exists() {
+			body, err = sjson.SetBytes(body, "output_config.effort", "high")
+			if err != nil {
+				return fmt.Errorf("normalize Claude effort: %w", err)
+			}
+		}
+	}
+	body, err = sjson.DeleteBytes(body, "thinking.budget_tokens")
+	if err != nil {
+		return fmt.Errorf("remove Claude thinking budget: %w", err)
+	}
+	return p.ReplaceBody(body)
+}
+
 // validateClaude55Request rejects settings that the upstream cannot honor.
-// Call before OAuth mimicry can remove tool_choice or alter thinking defaults.
+// Call after legacy thinking normalization and before OAuth mimicry can remove
+// tool_choice or alter thinking defaults.
 func validateClaude55Request(body []byte, model string) error {
 	if !isClaude55SignedThinkingModel(model) {
 		return nil
