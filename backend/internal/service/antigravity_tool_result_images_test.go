@@ -75,12 +75,35 @@ func TestAntigravityResponsesParallelToolResultImagesKeepFunctionResponsesContig
  {"type":"function_call_output","call_id":"call_cmd_3","output":"done"}
  ]}`)
 			wire := toolImageCompatWire(t, raw, model)
-			parts := gjson.GetBytes(wire, "request.contents.1.parts").Array()
+			contents := gjson.GetBytes(wire, "request.contents").Array()
+			// Gemini turn normalization may prepend a user turn before the tool calls.
+			// Locate the response turn by its contents while requiring all results together.
+			responseTurn := -1
+			for i, content := range contents {
+				for _, part := range content.Get("parts").Array() {
+					if part.Get("functionResponse").Exists() {
+						require.True(t, responseTurn == -1 || responseTurn == i, "all function responses must share one turn")
+						responseTurn = i
+					}
+				}
+			}
+			require.Greater(t, responseTurn, 0, "the response turn must follow its model call turn")
+			require.Equal(t, "user", contents[responseTurn].Get("role").String())
+			callTurn := contents[responseTurn-1]
+			require.Equal(t, "model", callTurn.Get("role").String())
+			calls := callTurn.Get("parts").Array()
+			require.Len(t, calls, 3)
+			for i, name := range []string{"view_image", "view_image", "exec_command"} {
+				require.Equal(t, name, calls[i].Get("functionCall.name").String())
+			}
+			parts := contents[responseTurn].Get("parts").Array()
 			require.Len(t, parts, 5)
 			require.Equal(t, "view_image", parts[0].Get("functionResponse.name").String())
 			require.Equal(t, "view_image", parts[1].Get("functionResponse.name").String())
 			require.Equal(t, "exec_command", parts[2].Get("functionResponse.name").String())
+			require.Equal(t, "image/png", parts[3].Get("inlineData.mimeType").String())
 			require.Equal(t, "AQID", parts[3].Get("inlineData.data").String())
+			require.Equal(t, "image/jpeg", parts[4].Get("inlineData.mimeType").String())
 			require.Equal(t, "BAUG", parts[4].Get("inlineData.data").String())
 		})
 	}
