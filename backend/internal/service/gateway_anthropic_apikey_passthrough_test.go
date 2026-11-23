@@ -1772,7 +1772,9 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_Non2xxRecordsOllamaActivity(t
 
 func TestOpus55RejectsUnsupportedParametersBeforeMimicry(t *testing.T) {
 	for _, typ := range []string{AccountTypeOAuth, AccountTypeAPIKey} {
-		for _, field := range []string{`"thinking":{"type":"disabled"}`, `"tool_choice":{"type":"any"}`, `"tool_choice":{"type":"tool","name":"lookup"}`} {
+		// thinking.type=disabled is normalized (omitted + low effort) before
+		// validation; see TestGatewayServiceAdaptiveThinkingEntryPoints.
+		for _, field := range []string{`"thinking":{"type":"between_tools"}`, `"tool_choice":{"type":"any"}`, `"tool_choice":{"type":"tool","name":"lookup"}`} {
 			for _, count := range []bool{false, true} {
 				rec := httptest.NewRecorder()
 				c, _ := gin.CreateTestContext(rec)
@@ -1814,8 +1816,9 @@ func TestOpus55ThinkingDefaultPreservesSignedHistory(t *testing.T) {
 }
 
 func TestSonnet55RejectsUnsupportedParametersBeforeMimicry(t *testing.T) {
+	// thinking.type=disabled is normalized (omitted + low effort) before
+	// validation; see TestGatewayServiceAdaptiveThinkingEntryPoints.
 	fields := []string{
-		`"thinking":{"type":"disabled"}`,
 		`"thinking":{"type":"between_tools"},"output_config":{"effort":"xhigh"}`,
 		`"thinking":{"type":"between_tools","display":"summarized"}`,
 		`"tool_choice":{"type":"any"}`,
