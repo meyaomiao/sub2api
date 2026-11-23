@@ -643,10 +643,20 @@ func isClaude55SignedThinkingModel(model string) bool {
 }
 
 // normalizeClaudeAdaptiveThinking adapts legacy manual thinking before validation
-// for Claude 5.5. The resolved upstream model controls compatibility so account
-// aliases work too. Explicit effort, output formats and signed history survive.
+// for Claude 5.5 and Fable/Mythos 5.2. The resolved upstream model controls
+// compatibility so account aliases work too. Explicit effort, output formats
+// and signed history survive.
+//
+// thinking.type=disabled is dropped for models that only accept adaptive
+// thinking (Opus/Sonnet 5.5, Fable/Mythos 5.2): omitting thinking is the
+// documented way to request the default mode, and the lightest effort ("low")
+// is filled in when the client did not choose one, so reasoning-off requests
+// (titles, compaction, reasoning=off sessions) stay cheap instead of failing.
+// Haiku 5.5 accepts disabled at high effort or below and is left to validation.
 func (p *ParsedRequest) normalizeClaudeAdaptiveThinking(model string) error {
-	if !claude.IsOpus55(model) && !claude.IsSonnet55(model) && !claude.IsHaiku55(model) {
+	isHaiku55 := claude.IsHaiku55(model)
+	adaptiveOnly := claude.IsOpus55(model) || claude.IsSonnet55(model) || claude.IsFable52(model) || claude.IsMythos52(model)
+	if !adaptiveOnly && !isHaiku55 {
 		return nil
 	}
 	body := p.Body.Bytes()
@@ -655,6 +665,19 @@ func (p *ParsedRequest) normalizeClaudeAdaptiveThinking(model string) error {
 		return nil
 	}
 	thinkingType := thinking.Get("type").String()
+	if thinkingType == "disabled" && adaptiveOnly {
+		out, err := sjson.DeleteBytes(body, "thinking")
+		if err != nil {
+			return fmt.Errorf("drop disabled Claude thinking: %w", err)
+		}
+		if !gjson.GetBytes(out, "output_config.effort").Exists() {
+			out, err = sjson.SetBytes(out, "output_config.effort", "low")
+			if err != nil {
+				return fmt.Errorf("normalize Claude effort: %w", err)
+			}
+		}
+		return p.ReplaceBody(out)
+	}
 	if thinkingType != "enabled" && thinkingType != "adaptive" {
 		return nil
 	}

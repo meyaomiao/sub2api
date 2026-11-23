@@ -94,9 +94,36 @@ func TestParsedRequestNormalizeClaudeAdaptiveThinking(t *testing.T) {
 			fields: `,"thinking":{"type":"enabled","budget_tokens":4096}`,
 		},
 		{
-			name:   "other signed history family keeps manual thinking",
-			model:  "claude-fable-5-2",
-			fields: `,"thinking":{"type":"enabled","budget_tokens":4096}`,
+			name:         "fable 5.2 manual budget converts to adaptive",
+			model:        "claude-fable-5-2",
+			fields:       `,"thinking":{"type":"enabled","budget_tokens":4096}`,
+			wantThinking: `{"type":"adaptive"}`,
+			wantEffort:   "high",
+			changed:      true,
+		},
+		{
+			name:         "mythos 5.2 manual budget keeps explicit effort",
+			model:        "claude-mythos-5-2",
+			fields:       `,"thinking":{"type":"enabled","budget_tokens":4096},"output_config":{"effort":"medium"}`,
+			wantThinking: `{"type":"adaptive"}`,
+			wantEffort:   "medium",
+			changed:      true,
+		},
+		{
+			name:         "opus disabled thinking is omitted with low effort",
+			model:        "claude-opus-5-5",
+			fields:       `,"thinking":{"type":"disabled"}`,
+			wantThinking: "-",
+			wantEffort:   "low",
+			changed:      true,
+		},
+		{
+			name:         "fable disabled thinking keeps explicit effort",
+			model:        "claude-fable-5-2",
+			fields:       `,"thinking":{"type":"disabled"},"output_config":{"effort":"medium","format":` + adaptiveThinkingTestFormat + `}`,
+			wantThinking: "-",
+			wantEffort:   "medium",
+			changed:      true,
 		},
 		{
 			name:   "omitted thinking stays omitted",
@@ -114,7 +141,9 @@ func TestParsedRequestNormalizeClaudeAdaptiveThinking(t *testing.T) {
 			require.NoError(t, parsed.normalizeClaudeAdaptiveThinking(tc.model))
 			if tc.changed {
 				require.NotEqual(t, original, string(parsed.Body.Bytes()))
-				require.True(t, parsed.ThinkingEnabled)
+				if tc.wantThinking != "-" {
+					require.True(t, parsed.ThinkingEnabled)
+				}
 			} else {
 				require.Equal(t, original, string(parsed.Body.Bytes()))
 				require.Equal(t, originalThinkingEnabled, parsed.ThinkingEnabled)
@@ -125,7 +154,7 @@ func TestParsedRequestNormalizeClaudeAdaptiveThinking(t *testing.T) {
 			if wantThinking == "" {
 				wantThinking = gjson.Get(original, "thinking").Raw
 			}
-			if wantThinking == "" {
+			if wantThinking == "" || wantThinking == "-" {
 				require.False(t, gjson.GetBytes(parsed.Body.Bytes(), "thinking").Exists())
 			} else {
 				require.JSONEq(t, wantThinking, gjson.GetBytes(parsed.Body.Bytes(), "thinking").Raw)
@@ -234,6 +263,32 @@ func TestGatewayServiceAdaptiveThinkingEntryPoints(t *testing.T) {
 			wantEffort:   "medium",
 		},
 		{
+			name:         "messages fable 5.2 manual thinking becomes adaptive",
+			model:        "claude-fable-5-2",
+			mappedModel:  "claude-fable-5-2",
+			fields:       `,"thinking":{"type":"enabled","budget_tokens":4096}`,
+			stream:       true,
+			wantThinking: `{"type":"adaptive"}`,
+			wantEffort:   "high",
+		},
+		{
+			name:        "messages opus disabled thinking is omitted with low effort",
+			model:       "claude-opus-5-5",
+			mappedModel: "claude-opus-5-5",
+			fields:      `,"thinking":{"type":"disabled"}`,
+			stream:      true,
+			passthrough: true,
+			wantEffort:  "low",
+		},
+		{
+			name:        "count fable disabled thinking keeps explicit effort",
+			model:       "public-fable",
+			mappedModel: "claude-fable-5-2",
+			fields:      `,"thinking":{"type":"disabled"},"output_config":{"effort":"medium"}`,
+			countTokens: true,
+			wantEffort:  "medium",
+		},
+		{
 			name:         "count haiku disabled at high stays disabled",
 			model:        "public-haiku",
 			mappedModel:  "claude-haiku-5-5",
@@ -303,7 +358,11 @@ func TestGatewayServiceAdaptiveThinkingEntryPoints(t *testing.T) {
 			require.NotNil(t, upstream.lastReq)
 			require.Equal(t, path, upstream.lastReq.URL.Path)
 			require.Equal(t, tc.mappedModel, gjson.GetBytes(upstream.lastBody, "model").String())
-			require.JSONEq(t, tc.wantThinking, gjson.GetBytes(upstream.lastBody, "thinking").Raw)
+			if tc.wantThinking == "" {
+				require.False(t, gjson.GetBytes(upstream.lastBody, "thinking").Exists())
+			} else {
+				require.JSONEq(t, tc.wantThinking, gjson.GetBytes(upstream.lastBody, "thinking").Raw)
+			}
 			require.Equal(t, tc.wantEffort, gjson.GetBytes(upstream.lastBody, "output_config.effort").String())
 			require.Equal(t, tc.wantEffort != "", gjson.GetBytes(upstream.lastBody, "output_config.effort").Exists())
 			require.Equal(t, gjson.GetBytes(body, "output_config.format").Raw, gjson.GetBytes(upstream.lastBody, "output_config.format").Raw)
