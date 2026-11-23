@@ -32,7 +32,9 @@
 
 保留 `ParsedRequest.normalizeClaudeAdaptiveThinking` 及其在 `Forward`、`ForwardCountTokens` 校验前的调用。它依据映射后的上游模型，将 Opus/Sonnet/Haiku 5.5 的旧 `thinking.type=enabled` 转为 `adaptive`，移除 `budget_tokens`；保留客户端显式 effort，缺省时使用 `high`。已有 adaptive 请求仅清理遗留 budget，省略 thinking 的请求保持原样。
 
-升级后运行 `go test -tags=unit ./internal/service -run 'TestParsedRequestNormalizeClaudeAdaptiveThinking|TestGatewayServiceAdaptiveThinking|TestOpus55|TestSonnet55'`，并使用旧 enabled 请求验证 OAuth、API Key 及 token 计数入口。兼容转换必须先于 `validateClaude55Request`，仅放在 API Key 透传构建函数中既覆盖不到 OAuth，也晚于校验。继续保留不支持的 disabled、强制工具选择等参数的校验。
+2026-11-22 起同一函数还覆盖 Fable/Mythos 5.2（`enabled` 同样转 `adaptive`），并把 Opus/Sonnet 5.5、Fable/Mythos 5.2 的 `thinking.type=disabled` 改为省略 thinking；客户端未给 effort 时补 `low`，显式 effort 保留。原因：DSH 等客户端在 reasoning=off、标题生成、压缩等辅助请求中发送 `disabled`，未配置 `forceAdaptiveThinking` 的路由发送 `enabled`，此前在网关本地被 400 拒绝。Haiku 5.5 的 `disabled` 仍按原规则（high 及以下放行，xhigh/max 拒绝）。
+
+升级后运行 `go test -tags=unit ./internal/service -run 'TestParsedRequestNormalizeClaudeAdaptiveThinking|TestGatewayServiceAdaptiveThinking|TestOpus55|TestSonnet55'`，并使用旧 enabled 请求验证 OAuth、API Key 及 token 计数入口。兼容转换必须先于 `validateClaude55Request`，仅放在 API Key 透传构建函数中既覆盖不到 OAuth，也晚于校验。继续保留 between_tools（非 Sonnet）、Haiku 高 effort 的 disabled、强制工具选择等参数的校验。
 
 ## 独立的客户端隐私过滤
 
